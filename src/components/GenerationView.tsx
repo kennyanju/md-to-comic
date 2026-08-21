@@ -94,10 +94,15 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
   const generateAllPanels = async () => {
     setIsGeneratingAll(true);
 
-    for (const { panel, pageIdx } of allPanels) {
-      if (panel.status !== 'done') {
-        await generateSinglePanel(panel, pageIdx);
-      }
+    const pendingPanels = allPanels.filter(({ panel }) => panel.status !== 'done');
+    
+    // Process in batches of 3
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < pendingPanels.length; i += BATCH_SIZE) {
+      const batch = pendingPanels.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(
+        batch.map(({ panel, pageIdx }) => generateSinglePanel(panel, pageIdx))
+      );
     }
 
     setIsGeneratingAll(false);

@@ -7,28 +7,6 @@
 
   "assets": { "directory": "dist" },
 
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "comic-db",
-      "database_id": "e8d6f26d-4325-4e7d-a968-d0c22e135e4f"
-    }
-  ],
-
-  "r2_buckets": [
-    {
-      "binding": "COMIC_ASSETS",
-      "bucket_name": "comic-assets"
-    }
-  ],
-
-  "kv_namespaces": [
-    {
-      "binding": "KEYS_KV",
-      "id": "55866940e5ea4cd58e2bb4d5ba2dc33a"
-    }
-  ],
-
   "ai": {
     "binding": "AI"
   }

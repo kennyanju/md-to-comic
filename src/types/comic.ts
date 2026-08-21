@@ -120,6 +120,7 @@ export interface UserSettings {
   preferred_image_backend: ImageBackendType;
   replicate_model: string;
   hf_model: string;
+  panelsPerPage: number;
 }
 
 export interface ComicProject {

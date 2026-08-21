@@ -16,20 +16,15 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
     const { prompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
     const model = settings.hf_model || 'black-forest-labs/FLUX.1-schnell';
 
-    const response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+    const response = await fetch('/api/generate-image', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          negative_prompt: negative_prompt,
-          width: 768,
-          height: 512,
-          num_inference_steps: 4
-        }
+        backend: 'huggingface',
+        api_key: token,
+        model,
+        prompt,
+        negative_prompt
       })
     });
 

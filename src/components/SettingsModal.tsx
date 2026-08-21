@@ -67,7 +67,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.25)', fontSize: '0.85rem' }}>
             <ShieldCheck color="#10b981" size={20} />
             <span>
-              <strong>BYOK Security:</strong> Your API keys are saved encrypted in your local browser storage and/or Cloudflare Workers KV. They are never shared or logged.
+              <strong>BYOK Security:</strong> Your API keys are saved securely in your local browser storage. They are never shared or logged.
             </span>
           </div>
 

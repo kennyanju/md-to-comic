@@ -5,7 +5,8 @@ import {
   PanelScript, 
   DialogueItem 
 } from '../types/comic';
-import { buildLlmScriptingPrompt, buildOfflineMockPanels } from './promptBuilder';
+import { buildLlmScriptingPrompt, buildOfflineMockPanels, buildImageGenerationPrompt } from './promptBuilder';
+import { getArtStyleById } from './artStyles';
 
 export interface GenerateScriptOptions {
   chunk: MarkdownChunk;
@@ -24,35 +25,29 @@ export async function generateComicScript(options: GenerateScriptOptions): Promi
   if (!apiKey || apiKey.trim() === '') {
     // Artificial small delay to simulate processing
     await new Promise(res => setTimeout(res, 800));
-    return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters);
+    return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters, targetPanels);
   }
 
   const { systemPrompt, userPrompt } = buildLlmScriptingPrompt(chunk, metadata, characters, targetPanels);
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('/api/generate-script', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://md-to-comic.pages.dev',
-        'X-Title': 'MD to Comic Generator'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
+        api_key: apiKey,
+        systemPrompt,
+        userPrompt
       })
     });
 
     if (!response.ok) {
       const errText = await response.text();
       console.warn(`OpenRouter API error (${response.status}): ${errText}. Falling back to smart script generator.`);
-      return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters);
+      return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters, targetPanels);
     }
 
     const data = await response.json();
@@ -61,7 +56,7 @@ export async function generateComicScript(options: GenerateScriptOptions): Promi
     return parseLlmPanelsResponse(content, chunk.page_index, artStyleId, characters);
   } catch (err) {
     console.error('Failed to call OpenRouter:', err);
-    return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters);
+    return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters, targetPanels);
   }
 }
 
@@ -72,7 +67,8 @@ function parseLlmPanelsResponse(
   rawContent: string, 
   pageIndex: number, 
   artStyleId: string, 
-  characters: CharacterRosterItem[]
+  characters: CharacterRosterItem[],
+  targetPanels: number = 4
 ): PanelScript[] {
   let cleaned = rawContent.trim();
 
@@ -112,26 +108,34 @@ function parseLlmPanelsResponse(
           }))
         : [];
 
-      return {
+      const scene_description = item.scene_description || 'Detailed comic scene illustration.';
+      
+      const panelDraft = {
         id: `panel-${pageIndex}-${pIdx}-${Date.now()}-${idx}`,
         panel_index: pIdx,
         page_index: pageIndex,
         shot_type: (['wide', 'medium', 'close_up', 'extreme_close_up', 'birds_eye', 'dutch_angle'].includes(item.shot_type)
           ? item.shot_type
           : 'medium') as any,
-        scene_description: item.scene_description || 'Detailed comic scene illustration.',
+        scene_description,
         mood: item.mood || 'Dramatic',
         caption: item.caption || undefined,
         dialogue: dialogueItems,
         character_tags: Array.isArray(item.character_tags) ? item.character_tags : [],
-        generated_prompt: item.scene_description || '',
-        status: 'pending'
+        generated_prompt: '',
+        status: 'pending' as const
       };
+      
+      const artStyle = getArtStyleById(artStyleId);
+      const { prompt } = buildImageGenerationPrompt(panelDraft as any, characters, artStyle);
+      panelDraft.generated_prompt = prompt;
+      
+      return panelDraft;
     });
   } catch (err) {
     console.error('Error parsing LLM response as JSON:', err, rawContent);
     // Fallback if parsing failed
     const dummyChunk = { id: `chk-${pageIndex}`, page_index: pageIndex, heading: `Page ${pageIndex}`, raw_markdown: rawContent, word_count: 50, panels: [] };
-    return buildOfflineMockPanels(dummyChunk, pageIndex, artStyleId, characters);
+    return buildOfflineMockPanels(dummyChunk, pageIndex, artStyleId, characters, targetPanels);
   }
 }

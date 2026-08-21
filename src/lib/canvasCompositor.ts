@@ -95,7 +95,8 @@ export function calculatePanelRects(
 export async function renderComicPageToCanvas(
   canvas: HTMLCanvasElement,
   page: ComicPage,
-  scale: number = 1
+  scale: number = 1,
+  signal?: AbortSignal
 ): Promise<void> {
   const baseWidth = 1200;
   const baseHeight = 1700;
@@ -130,6 +131,7 @@ export async function renderComicPageToCanvas(
 
   // 3. Render Each Panel Image & Border
   for (let i = 0; i < rects.length; i++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     const rect = rects[i];
     const panel = page.panels[i];
 
@@ -142,6 +144,7 @@ export async function renderComicPageToCanvas(
     if (panel && panel.image_url) {
       try {
         const img = await loadImage(panel.image_url);
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
         // Draw image cover-fitted into panel rect
         drawImageCover(ctx, img, rect.x, rect.y, rect.width, rect.height);
       } catch (err) {
@@ -263,6 +266,8 @@ function drawPanelBorder(
     ctx.lineWidth = 1.5 * scale;
     ctx.strokeStyle = '#18181b';
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+  } else if (style === 'borderless') {
+    // No border drawn
   }
   ctx.restore();
 }
@@ -427,6 +432,12 @@ function roundRect(
   height: number,
   radius: number
 ) {
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    return;
+  }
+  
   ctx.beginPath();
   ctx.moveTo(x + radius, y);
   ctx.lineTo(x + width - radius, y);

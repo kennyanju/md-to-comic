@@ -1,11 +1,12 @@
 import React from 'react';
-import { BookOpen, Settings, RotateCcw, Sparkles, Download, Layers } from 'lucide-react';
+import { BookOpen, Settings, RotateCcw, Sparkles, Download, Layers, Folder } from 'lucide-react';
 
 interface NavbarProps {
   onOpenSettings: () => void;
   onResetProject: () => void;
   onQuickDemo: () => void;
   onOpenExport: () => void;
+  onOpenGallery: () => void;
   hasPanels: boolean;
   projectTitle: string;
 }
@@ -15,6 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onResetProject,
   onQuickDemo,
   onOpenExport,
+  onOpenGallery,
   hasPanels,
   projectTitle
 }) => {
@@ -50,6 +52,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Export Comic</span>
           </button>
         )}
+
+        <button className="btn btn-ghost btn-sm" onClick={onOpenGallery} title="Open Project Gallery">
+          <Folder size={14} />
+          <span>Projects</span>
+        </button>
 
         <button className="btn btn-ghost btn-sm" onClick={onResetProject} title="Start new project">
           <RotateCcw size={14} />

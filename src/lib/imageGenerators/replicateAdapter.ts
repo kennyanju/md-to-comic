@@ -16,41 +16,32 @@ export class ReplicateAdapter implements ImageGeneratorAdapter {
     const { prompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
     const model = settings.replicate_model || 'black-forest-labs/flux-schnell';
 
-    // Call Replicate API (Predictions endpoint)
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
+    // Call our Worker Proxy
+    const response = await fetch('/api/generate-image', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'wait'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        version: model.includes(':') ? model.split(':')[1] : undefined,
-        model: !model.includes(':') ? model : undefined,
-        input: {
-          prompt: prompt,
-          negative_prompt: negative_prompt,
-          aspect_ratio: '16:9',
-          num_outputs: 1,
-          output_format: 'png',
-          go_fast: true
-        }
+        backend: 'replicate',
+        api_key: apiKey,
+        model,
+        prompt,
+        negative_prompt
       })
     });
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`Replicate error (${response.status}): ${err}`);
+      throw new Error(`Worker error (${response.status}): ${err}`);
     }
 
     let prediction = await response.json();
 
-    // Poll if not completed immediately
+    // Poll worker if not completed immediately
     let attempts = 0;
     while (prediction.status !== 'succeeded' && prediction.status !== 'failed' && attempts < 30) {
       await new Promise(r => setTimeout(r, 2000));
-      const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${prediction.id}`, {
-        headers: { 'Authorization': `Bearer ${apiKey}` }
+      const pollRes = await fetch(`/api/poll-image?backend=replicate&id=${prediction.id}`, {
+        headers: { 'X-API-Key': apiKey }
       });
       if (pollRes.ok) {
         prediction = await pollRes.json();

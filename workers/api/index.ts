@@ -2,9 +2,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
 export interface Env {
-  DB?: D1Database;
-  ASSETS?: R2Bucket;
-  KEYS_KV?: KVNamespace;
   OPENROUTER_API_KEY?: string;
   REPLICATE_API_TOKEN?: string;
   HF_ACCESS_TOKEN?: string;
@@ -15,8 +12,8 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Enable CORS for web frontend
 app.use('*', cors({
-  origin: '*',
-  allowHeaders: ['Content-Type', 'Authorization'],
+  origin: ['https://md-to-comic.kennyanju.workers.dev', 'http://localhost:5173'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
 
@@ -57,16 +54,12 @@ app.post('/api/parse-markdown', async (c) => {
 app.post('/api/generate-script', async (c) => {
   try {
     const body = await c.req.json();
-    const { chunk, characters, art_style, api_key, model = 'google/gemini-2.5-pro' } = body;
+    const { systemPrompt, userPrompt, api_key, model = 'google/gemini-2.5-pro' } = body;
 
     const key = api_key || c.env.OPENROUTER_API_KEY;
     if (!key) {
       return c.json({ error: 'OpenRouter API key required' }, 401);
     }
-
-    const systemPrompt = `You are a professional comic book scriptwriter.
-Art style: ${art_style || 'Comic Book'}
-Output a JSON array of comic panels with panel_index, shot_type, scene_description, mood, caption, character_tags, and dialogue array.`;
 
     const openRouterRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -80,7 +73,7 @@ Output a JSON array of comic panels with panel_index, shot_type, scene_descripti
         model,
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Story Chunk:\n${chunk.raw_markdown}` }
+          { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
         response_format: { type: 'json_object' }
@@ -116,10 +109,34 @@ app.post('/api/generate-image', async (c) => {
       });
     }
 
+    if (backend === 'huggingface') {
+      const token = api_key || c.env.HF_ACCESS_TOKEN;
+      if (!token) return c.json({ error: 'HF token required' }, 401);
+      const hfModel = body.model || 'black-forest-labs/FLUX.1-schnell';
+      const hfRes = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: prompt,
+          parameters: { negative_prompt, width: 768, height: 512, num_inference_steps: 4 }
+        })
+      });
+      if (!hfRes.ok) {
+        return c.json({ error: await hfRes.text() }, hfRes.status as any);
+      }
+      return new Response(await hfRes.arrayBuffer(), {
+        headers: { 'Content-Type': hfRes.headers.get('Content-Type') || 'image/png' }
+      });
+    }
+
     if (backend === 'replicate') {
       const token = api_key || c.env.REPLICATE_API_TOKEN;
       if (!token) return c.json({ error: 'Replicate token required' }, 401);
-
+      const repModel = body.model || 'black-forest-labs/flux-schnell';
+      
       const repRes = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {
@@ -128,8 +145,9 @@ app.post('/api/generate-image', async (c) => {
           'Prefer': 'wait'
         },
         body: JSON.stringify({
-          model: 'black-forest-labs/flux-schnell',
-          input: { prompt, negative_prompt }
+          version: repModel.includes(':') ? repModel.split(':')[1] : undefined,
+          model: !repModel.includes(':') ? repModel : undefined,
+          input: { prompt, negative_prompt, aspect_ratio: '16:9', num_outputs: 1, output_format: 'png', go_fast: true }
         })
       });
       const data = await repRes.json();
@@ -140,6 +158,23 @@ app.post('/api/generate-image', async (c) => {
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
+});
+
+// 4. Poll Image Proxy API (For Replicate)
+app.get('/api/poll-image', async (c) => {
+  const backend = c.req.query('backend');
+  const id = c.req.query('id');
+  const api_key = c.req.header('X-API-Key');
+
+  if (backend === 'replicate') {
+    const token = api_key || c.env.REPLICATE_API_TOKEN;
+    if (!token) return c.json({ error: 'Replicate token required' }, 401);
+    const pollRes = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    return c.json(await pollRes.json());
+  }
+  return c.json({ error: 'Unsupported backend' }, 400);
 });
 
 export default app;

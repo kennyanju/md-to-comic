@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { Navbar } from './components/Navbar';
 import { WizardStepper } from './components/WizardStepper';
 import { IngestionView } from './components/IngestionView';
 import { ScriptingView } from './components/ScriptingView';
 import { PanelEditorView } from './components/PanelEditorView';
 import { GenerationView } from './components/GenerationView';
-import { ComicStudioView } from './components/ComicStudioView';
-import { ExportView } from './components/ExportView';
-import { SettingsModal } from './components/SettingsModal';
+import { ProjectGalleryModal } from './components/ProjectGalleryModal';
+
+const ComicStudioView = React.lazy(() => import('./components/ComicStudioView').then(module => ({ default: module.ComicStudioView })));
+const ExportView = React.lazy(() => import('./components/ExportView').then(module => ({ default: module.ExportView })));
+const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
+
 
 import { ComicProject, UserSettings, ComicPage } from './types/comic';
 import { parseMarkdownChunks } from './lib/markdownParser';
 import { generateComicScript } from './lib/llmClient';
 import { SAMPLE_STORIES } from './lib/sampleStories';
-import { loadSettings, saveSettings, loadActiveProject, saveActiveProject } from './lib/storage';
+import { loadSettings, saveSettings, loadActiveProject, saveActiveProject, loadProjectFromGallery, saveProjectToGallery } from './lib/storage';
 
 import './styles/index.css';
 import './styles/app.css';
@@ -42,8 +45,9 @@ export const App: React.FC = () => {
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [maxReachedStep, setMaxReachedStep] = useState(project.current_step);
-  const [panelsPerPage, setPanelsPerPage] = useState(4);
+  const [panelsPerPage, setPanelsPerPage] = useState(settings.panelsPerPage || 4);
 
   // Auto-parse characters and metadata on first load or when markdown changes if no characters exist
   useEffect(() => {
@@ -71,6 +75,12 @@ export const App: React.FC = () => {
     saveSettings(newSettings);
   };
 
+  useEffect(() => {
+    if (panelsPerPage !== settings.panelsPerPage) {
+      handleSettingsSave({ ...settings, panelsPerPage });
+    }
+  }, [panelsPerPage]);
+
   const handleMarkdownChange = (md: string) => {
     const parsed = parseMarkdownChunks(md);
     setProject(prev => ({
@@ -88,10 +98,7 @@ export const App: React.FC = () => {
     const parsed = parseMarkdownChunks(project.raw_markdown);
 
     try {
-      const generatedPages: ComicPage[] = [];
-
-      for (let i = 0; i < parsed.chunks.length; i++) {
-        const chunk = parsed.chunks[i];
+      const promises = parsed.chunks.map(async (chunk, i) => {
         const panels = await generateComicScript({
           chunk,
           metadata: project.metadata,
@@ -102,7 +109,7 @@ export const App: React.FC = () => {
           targetPanels: panelsPerPage
         });
 
-        generatedPages.push({
+        return {
           id: `page-${i + 1}-${Date.now()}`,
           page_index: i + 1,
           title: chunk.heading,
@@ -117,8 +124,10 @@ export const App: React.FC = () => {
             show_page_number: true,
             dpi: 150
           }
-        });
-      }
+        } as ComicPage;
+      });
+
+      const generatedPages = await Promise.all(promises);
 
       setProject(prev => ({
         ...prev,
@@ -129,6 +138,7 @@ export const App: React.FC = () => {
       setMaxReachedStep(Math.max(maxReachedStep, 2));
     } catch (err) {
       console.error('Failed to generate script:', err);
+      alert('Failed to generate script. Check your API key and network connection.');
     } finally {
       setIsGeneratingScript(false);
     }
@@ -154,7 +164,10 @@ export const App: React.FC = () => {
   };
 
   const handleResetProject = () => {
-    if (window.confirm('Start a new comic project? Unsaved changes will be cleared.')) {
+    if (window.confirm('Start a new comic project? Ensure your current work is saved to gallery.')) {
+      if (project.id && project.pages.length > 0) {
+        saveProjectToGallery(project);
+      }
       setProject({
         id: `proj-${Date.now()}`,
         title: 'New Comic Story',
@@ -171,7 +184,34 @@ export const App: React.FC = () => {
     }
   };
 
-  const parsedChunks = parseMarkdownChunks(project.raw_markdown).chunks;
+  const handleLoadProject = (id: string) => {
+    const loaded = loadProjectFromGallery(id);
+    if (loaded) {
+      setProject(loaded);
+      setMaxReachedStep(loaded.current_step);
+    }
+  };
+
+  const handleImportProject = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const imported = JSON.parse(e.target?.result as string);
+        if (imported && imported.id && imported.pages) {
+          setProject(imported);
+          setMaxReachedStep(imported.current_step);
+          saveProjectToGallery(imported);
+        } else {
+          alert('Invalid project JSON file.');
+        }
+      } catch (err) {
+        alert('Failed to parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const parsedChunks = useMemo(() => parseMarkdownChunks(project.raw_markdown).chunks, [project.raw_markdown]);
   const hasPanels = project.pages.some(p => p.panels.length > 0);
 
   return (
@@ -181,6 +221,7 @@ export const App: React.FC = () => {
         onResetProject={handleResetProject}
         onQuickDemo={handleQuickDemo}
         onOpenExport={() => setIsExportOpen(true)}
+        onOpenGallery={() => setIsGalleryOpen(true)}
         hasPanels={hasPanels}
         projectTitle={project.title}
       />
@@ -245,13 +286,15 @@ export const App: React.FC = () => {
         )}
 
         {project.current_step === 4 && (
-          <ComicStudioView
-            pages={project.pages}
-            onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
-            onBack={() => setProject(p => ({ ...p, current_step: 3 }))}
-            onProceed={() => setIsExportOpen(true)}
-            onOpenExport={() => setIsExportOpen(true)}
-          />
+          <Suspense fallback={<div className="loading-spinner" />}>
+            <ComicStudioView
+              pages={project.pages}
+              onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
+              onBack={() => setProject(p => ({ ...p, current_step: 3 }))}
+              onProceed={() => setIsExportOpen(true)}
+              onOpenExport={() => setIsExportOpen(true)}
+            />
+          </Suspense>
         )}
       </main>
 
@@ -265,17 +308,28 @@ export const App: React.FC = () => {
         </div>
       </footer>
 
-      <ExportView
-        project={project}
-        isOpen={isExportOpen}
-        onClose={() => setIsExportOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <ExportView
+          project={project}
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+        />
+      </Suspense>
 
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        settings={settings}
-        onSave={handleSettingsSave}
+      <Suspense fallback={null}>
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={settings}
+          onSave={handleSettingsSave}
+        />
+      </Suspense>
+
+      <ProjectGalleryModal
+        isOpen={isGalleryOpen}
+        onClose={() => setIsGalleryOpen(false)}
+        onLoadProject={handleLoadProject}
+        onImportProject={handleImportProject}
       />
     </div>
   );

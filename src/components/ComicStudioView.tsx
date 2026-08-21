@@ -36,7 +36,8 @@ const BORDER_STYLES: { id: BorderStyle; name: string }[] = [
   { id: 'ink-gutter', name: 'Ink Gutter (Organic Bold)' },
   { id: 'classic-black', name: 'Classic Black Gutter' },
   { id: 'neon-glow', name: 'Cyberpunk Neon Glow' },
-  { id: 'manga-clean', name: 'Manga Fine Lines' }
+  { id: 'manga-clean', name: 'Manga Fine Lines' },
+  { id: 'borderless', name: 'Borderless (Modern)' }
 ];
 
 const COMIC_FONTS = [
@@ -78,9 +79,13 @@ export const ComicStudioView: React.FC<ComicStudioViewProps> = ({
 
   // Re-render canvas whenever page or layout changes
   useEffect(() => {
+    const abortController = new AbortController();
     if (canvasRef.current && currentPage) {
-      renderComicPageToCanvas(canvasRef.current, currentPage, 1.0);
+      renderComicPageToCanvas(canvasRef.current, currentPage, 1.0, abortController.signal).catch(err => {
+        if (err.name !== 'AbortError') console.error(err);
+      });
     }
+    return () => abortController.abort();
   }, [currentPage, currentPageIndex]);
 
   const updateCurrentPageLayout = (updater: (cfg: typeof layout) => typeof layout) => {

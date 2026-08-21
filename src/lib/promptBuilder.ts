@@ -112,7 +112,8 @@ export function buildOfflineMockPanels(
   chunk: MarkdownChunk,
   pageIndex: number,
   artStyleId: string,
-  characters: CharacterRosterItem[]
+  characters: CharacterRosterItem[],
+  targetPanels: number = 4
 ): PanelScript[] {
   const artStyle = getArtStyleById(artStyleId);
   const lines = chunk.raw_markdown.split('\n').map(l => l.trim()).filter(Boolean);
@@ -124,7 +125,7 @@ export function buildOfflineMockPanels(
   const partnerName = characters[1]?.name || 'Jax';
 
   const panels: PanelScript[] = [];
-  const panelCount = 4;
+  const panelCount = targetPanels;
 
   for (let i = 1; i <= panelCount; i++) {
     const shot = shotTypes[(i - 1) % shotTypes.length];
@@ -144,7 +145,7 @@ export function buildOfflineMockPanels(
       dialogue.push({
         id: `dlg-${pageIndex}-${i}-1`,
         speaker: heroName,
-        line: "Sub-systems are active... we're right on schedule.",
+        line: lines[0] || "Sub-systems are active... we're right on schedule.",
         type: 'speech' as const
       });
       tags.push(heroName);
@@ -153,7 +154,7 @@ export function buildOfflineMockPanels(
       dialogue.push({
         id: `dlg-${pageIndex}-${i}-1`,
         speaker: partnerName || heroName,
-        line: "Look out! Energy surge detected!",
+        line: lines[1] || "Look out! Energy surge detected!",
         type: 'shout' as const
       });
       tags.push(partnerName || heroName);
@@ -162,7 +163,7 @@ export function buildOfflineMockPanels(
       dialogue.push({
         id: `dlg-${pageIndex}-${i}-1`,
         speaker: heroName,
-        line: "Hold your ground! We finish this together!",
+        line: lines[2] || "Hold your ground! We finish this together!",
         type: 'shout' as const
       });
       tags.push(heroName);
