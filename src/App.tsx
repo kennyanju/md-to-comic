@@ -59,6 +59,10 @@ export const App: React.FC = () => {
         characters: parsed.detectedCharacters,
         title: (parsed.metadata.title as string) || 'Comic Story'
       }));
+      
+      if (parsed.metadata.panels_per_page && typeof parsed.metadata.panels_per_page === 'number') {
+        setPanelsPerPage(parsed.metadata.panels_per_page);
+      }
     }
   }, []);
 
@@ -94,6 +98,12 @@ export const App: React.FC = () => {
   };
 
   const handleRunScriptGeneration = async () => {
+    const hasDonePanels = project.pages.some(p => p.panels.some(panel => panel.status === 'done'));
+    if (hasDonePanels) {
+      const confirm = window.confirm('You already have panels with generated images. Re-running script generation will overwrite them. Continue?');
+      if (!confirm) return;
+    }
+
     setIsGeneratingScript(true);
     const parsed = parseMarkdownChunks(project.raw_markdown);
 
@@ -109,15 +119,28 @@ export const App: React.FC = () => {
           targetPanels: panelsPerPage
         });
 
+        let defaultLayout: any = 'grid-4';
+        if (project.selected_style_id === 'manga-anime' && panels.length === 6) defaultLayout = 'manga-6';
+        else if (panels.length === 5) defaultLayout = 'action-5';
+        else if (panels.length === 6) defaultLayout = 'manga-6';
+        else if (panels.length === 3) defaultLayout = 'cinematic-3';
+        else if (panels.length === 2) defaultLayout = 'hero-split-2';
+        else if (panels.length === 1) defaultLayout = 'splash-1';
+
+        let defaultBorder: any = 'ink-gutter';
+        if (project.selected_style_id === 'cyberpunk-neon') defaultBorder = 'neon-glow';
+        if (project.selected_style_id === 'manga-anime') defaultBorder = 'manga-clean';
+        if (project.selected_style_id === 'noir-detective') defaultBorder = 'classic-black';
+
         return {
           id: `page-${i + 1}-${Date.now()}`,
           page_index: i + 1,
           title: chunk.heading,
           panels,
           layout_config: {
-            layout_type: panels.length === 5 ? 'action-5' : panels.length === 6 ? 'manga-6' : panels.length === 3 ? 'cinematic-3' : 'grid-4',
-            border_style: project.selected_style_id === 'cyberpunk-neon' ? 'neon-glow' : 'ink-gutter',
-            gutter_width: 14,
+            layout_type: defaultLayout,
+            border_style: defaultBorder,
+            gutter_width: project.selected_style_id === 'manga-anime' ? 4 : 14,
             font_family: 'Bangers',
             bg_color: '#ffffff',
             border_color: '#000000',

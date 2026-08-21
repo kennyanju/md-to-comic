@@ -14,7 +14,8 @@ export class CloudflareAiAdapter implements ImageGeneratorAdapter {
       throw new Error('Cloudflare API Token & Account ID are required. Please configure them in Settings.');
     }
 
-    const { prompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const { prompt: builtPrompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const finalPrompt = panel.generated_prompt || builtPrompt;
 
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`,
@@ -25,8 +26,7 @@ export class CloudflareAiAdapter implements ImageGeneratorAdapter {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          prompt: prompt,
-          negative_prompt: negative_prompt,
+          prompt: finalPrompt,
           num_steps: 20
         })
       }

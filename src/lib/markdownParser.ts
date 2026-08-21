@@ -47,6 +47,10 @@ export function extractFrontmatter(rawText: string): {
   return { metadata, body };
 }
 
+function generateSlug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+}
+
 /**
  * Splits markdown body into pages/chunks based on headers, panel-breaks, or word density
  */
@@ -77,7 +81,34 @@ export function parseMarkdownChunks(rawText: string): {
     }
 
     // Further split if there are <!-- panel-break --> markers or if very long
-    sections.push({ heading, content });
+    const wordCount = content.split(/\s+/).filter(Boolean).length;
+    
+    if (wordCount > 500) {
+      // Split on double newlines to make sub-chunks
+      const subChunks = content.split(/\n\s*\n/);
+      let currentSubChunk = '';
+      let subIndex = 1;
+      
+      for (const para of subChunks) {
+        currentSubChunk += para + '\n\n';
+        if (currentSubChunk.split(/\s+/).filter(Boolean).length >= 350) {
+          sections.push({ 
+            heading: `${heading} (Part ${subIndex})`, 
+            content: currentSubChunk.trim() 
+          });
+          currentSubChunk = '';
+          subIndex++;
+        }
+      }
+      if (currentSubChunk.trim()) {
+        sections.push({ 
+          heading: subIndex > 1 ? `${heading} (Part ${subIndex})` : heading, 
+          content: currentSubChunk.trim() 
+        });
+      }
+    } else {
+      sections.push({ heading, content });
+    }
   }
 
   // Fallback if no headings
@@ -87,8 +118,9 @@ export function parseMarkdownChunks(rawText: string): {
 
   const chunks: MarkdownChunk[] = sections.map((sec, idx) => {
     const wordCount = sec.content.split(/\s+/).filter(Boolean).length;
+    const stableId = generateSlug(sec.heading) || 'scene';
     return {
-      id: `chunk-${idx + 1}-${Date.now()}`,
+      id: `chunk-${idx + 1}-${stableId}`,
       page_index: idx + 1,
       heading: sec.heading,
       raw_markdown: sec.content,
@@ -114,28 +146,38 @@ export function parseMarkdownChunks(rawText: string): {
 function extractCharacters(text: string): CharacterRosterItem[] {
   const charMap = new Map<string, { role: string; count: number }>();
 
+  const trackName = (name: string, weight: number = 1) => {
+    const n = name.trim();
+    if (n && n.length > 2 && n.length < 25 && !['Suddenly', 'Inside', 'After', 'Behind', 'High', 'Beneath', 'The', 'They', 'He', 'She', 'It', 'We', 'You'].includes(n)) {
+      const cur = charMap.get(n) || { role: 'Character', count: 0 };
+      cur.count += weight;
+      charMap.set(n, cur);
+    }
+  };
+
   // Patterns: Kira whispered / Jax roared / Dr. Ada said / Professor Ada
   const dialogueAfterPattern = /"([^"]+)"\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:said|whispered|roared|replied|shouted|murmured|asked|exclaimed|gasped|warned)/g;
   let match: RegExpExecArray | null;
-
   while ((match = dialogueAfterPattern.exec(text)) !== null) {
-    const name = match[2].trim();
-    if (name && !['Suddenly', 'Inside', 'After', 'Behind', 'High', 'Beneath'].includes(name)) {
-      const cur = charMap.get(name) || { role: 'Protagonist', count: 0 };
-      cur.count += 1;
-      charMap.set(name, cur);
-    }
+    trackName(match[2], 2);
   }
 
   // Pattern: Kira: "Dialogue" or Sir Gareth: "..."
   const dialogueBeforePattern = /^([A-Z][a-zA-Z\s.-]+):\s*"/gm;
   while ((match = dialogueBeforePattern.exec(text)) !== null) {
-    const name = match[1].trim();
-    if (name.length > 1 && name.length < 25) {
-      const cur = charMap.get(name) || { role: 'Character', count: 0 };
-      cur.count += 2;
-      charMap.set(name, cur);
-    }
+    trackName(match[1], 2);
+  }
+
+  // Pattern: Bold names e.g. **Kira**
+  const boldNamePattern = /\*\*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\*\*/g;
+  while ((match = boldNamePattern.exec(text)) !== null) {
+    trackName(match[1], 1.5);
+  }
+
+  // Pattern: Name + action verb (e.g. Kira charged, Jax leaped)
+  const actionPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:charged|leaped|jumped|ran|turned|smiled|frowned|nodded|stood)/g;
+  while ((match = actionPattern.exec(text)) !== null) {
+    trackName(match[1], 1);
   }
 
   // Palettes for badges

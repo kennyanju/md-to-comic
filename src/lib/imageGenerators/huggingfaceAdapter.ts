@@ -13,7 +13,8 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
       throw new Error('Hugging Face API token is required. Please set it in Settings.');
     }
 
-    const { prompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const { prompt: builtPrompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const finalPrompt = panel.generated_prompt || builtPrompt;
     const model = settings.hf_model || 'black-forest-labs/FLUX.1-schnell';
 
     const response = await fetch('/api/generate-image', {
@@ -23,7 +24,7 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
         backend: 'huggingface',
         api_key: token,
         model,
-        prompt,
+        prompt: finalPrompt,
         negative_prompt
       })
     });

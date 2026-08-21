@@ -108,6 +108,21 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
     setIsGeneratingAll(false);
   };
 
+  const generateFailedPanels = async () => {
+    setIsGeneratingAll(true);
+    const failedPanels = allPanels.filter(({ panel }) => panel.status === 'failed');
+    
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < failedPanels.length; i += BATCH_SIZE) {
+      const batch = failedPanels.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(
+        batch.map(({ panel, pageIdx }) => generateSinglePanel(panel, pageIdx))
+      );
+    }
+
+    setIsGeneratingAll(false);
+  };
+
   const updatePanelInPages = (panelId: string, pageIdx: number, updater: (p: PanelScript) => PanelScript) => {
     onPagesChange(
       pages.map((pg, idx) => {
@@ -139,13 +154,25 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
             <span>Back</span>
           </button>
 
+          {allPanels.some(({ panel }) => panel.status === 'failed') && (
+            <button
+              className="btn btn-secondary"
+              onClick={generateFailedPanels}
+              disabled={isGeneratingAll}
+              style={{ color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.4)' }}
+            >
+              <RefreshCw size={16} />
+              <span>Retry Failed Only</span>
+            </button>
+          )}
+
           <button
             className="btn btn-accent"
             onClick={generateAllPanels}
             disabled={isGeneratingAll}
           >
             <Sparkles size={16} />
-            <span>{isGeneratingAll ? 'Generating Panels...' : 'Generate All Panels'}</span>
+            <span>{isGeneratingAll ? 'Generating Panels...' : 'Generate / Retry All'}</span>
           </button>
 
           <button

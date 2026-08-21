@@ -324,9 +324,22 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                     <Sparkles size={12} />
                     Assembled AI Prompt (With Roster & Style):
                   </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                    {prompt}
-                  </div>
+                  <textarea
+                    value={panel.generated_prompt}
+                    onChange={(e) => updatePanel(panel.id, p => ({ ...p, generated_prompt: e.target.value }))}
+                    rows={4}
+                    style={{ 
+                      width: '100%', 
+                      fontFamily: 'var(--font-mono)', 
+                      fontSize: '0.78rem', 
+                      color: 'var(--text-primary)', 
+                      lineHeight: '1.4',
+                      padding: '0.5rem',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-medium)',
+                      borderRadius: 'var(--radius-sm)'
+                    }}
+                  />
                 </div>
               )}
             </div>

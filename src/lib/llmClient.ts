@@ -53,7 +53,7 @@ export async function generateComicScript(options: GenerateScriptOptions): Promi
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
 
-    return parseLlmPanelsResponse(content, chunk.page_index, artStyleId, characters);
+    return parseLlmPanelsResponse(content, chunk.page_index, artStyleId, characters, targetPanels);
   } catch (err) {
     console.error('Failed to call OpenRouter:', err);
     return buildOfflineMockPanels(chunk, chunk.page_index, artStyleId, characters, targetPanels);
@@ -97,7 +97,7 @@ function parseLlmPanelsResponse(
       }
     }
 
-    return (parsed as Record<string, any>[]).map((item, idx) => {
+    let finalPanels = (parsed as Record<string, any>[]).map((item, idx) => {
       const pIdx = item.panel_index || idx + 1;
       const dialogueItems: DialogueItem[] = Array.isArray(item.dialogue)
         ? item.dialogue.map((d: any, dIdx: number) => ({
@@ -132,6 +132,33 @@ function parseLlmPanelsResponse(
       
       return panelDraft;
     });
+
+    // Enforce targetPanels count
+    if (finalPanels.length > targetPanels) {
+      finalPanels = finalPanels.slice(0, targetPanels);
+    } else if (finalPanels.length < targetPanels) {
+      const artStyle = getArtStyleById(artStyleId);
+      for (let i = finalPanels.length; i < targetPanels; i++) {
+        const pIdx = i + 1;
+        const panelDraft: any = {
+          id: `panel-${pageIndex}-${pIdx}-${Date.now()}-padded`,
+          panel_index: pIdx,
+          page_index: pageIndex,
+          shot_type: 'medium',
+          scene_description: 'Continued action in the scene.',
+          mood: 'Tense',
+          dialogue: [],
+          character_tags: characters.length > 0 ? [characters[0].name] : [],
+          generated_prompt: '',
+          status: 'pending'
+        };
+        const { prompt } = buildImageGenerationPrompt(panelDraft, characters, artStyle);
+        panelDraft.generated_prompt = prompt;
+        finalPanels.push(panelDraft);
+      }
+    }
+
+    return finalPanels;
   } catch (err) {
     console.error('Error parsing LLM response as JSON:', err, rawContent);
     // Fallback if parsing failed

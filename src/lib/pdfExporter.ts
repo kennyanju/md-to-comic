@@ -32,9 +32,14 @@ export async function exportProjectToPdf(
       onProgress(i + 1, totalPages, `Rendering Page ${i + 1} of ${totalPages}...`);
     }
 
-    // High resolution render (scale 2.0 = ~2400x3400 px, 300 DPI)
-    await renderComicPageToCanvas(offscreenCanvas, page, 1.5);
-    const pngDataUrl = offscreenCanvas.toDataURL('image/png');
+    let pngDataUrl = page.assembled_image_url;
+    
+    if (!pngDataUrl) {
+      // High resolution render fallback (scale 1.5)
+      await renderComicPageToCanvas(offscreenCanvas, page, 1.5);
+      pngDataUrl = offscreenCanvas.toDataURL('image/png');
+    }
+    
     const pngBytes = await fetch(pngDataUrl).then(res => res.arrayBuffer());
 
     const embeddedPng = await pdfDoc.embedPng(pngBytes);
@@ -56,6 +61,13 @@ export async function exportProjectToPdf(
  * Downloads a single page as a high-resolution PNG
  */
 export async function downloadPagePng(page: ComicPage, filename?: string) {
+  if (page.assembled_image_url) {
+    const res = await fetch(page.assembled_image_url);
+    const blob = await res.blob();
+    saveAs(blob, filename || `comic-page-${page.page_index}.png`);
+    return;
+  }
+
   const canvas = document.createElement('canvas');
   await renderComicPageToCanvas(canvas, page, 2.0); // 2x high-res
   
@@ -97,8 +109,12 @@ export async function downloadProjectZip(project: ComicProject) {
 
   // Add assembled pages
   for (const page of project.pages) {
-    await renderComicPageToCanvas(canvas, page, 1.5);
-    const pageDataUrl = canvas.toDataURL('image/png');
+    let pageDataUrl = page.assembled_image_url;
+    
+    if (!pageDataUrl) {
+      await renderComicPageToCanvas(canvas, page, 1.5);
+      pageDataUrl = canvas.toDataURL('image/png');
+    }
     const pageBase64 = pageDataUrl.split(',')[1];
     pagesFolder?.file(`page-${page.page_index}.png`, pageBase64, { base64: true });
 

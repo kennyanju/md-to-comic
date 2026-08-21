@@ -13,7 +13,8 @@ export class ReplicateAdapter implements ImageGeneratorAdapter {
       throw new Error('Replicate API key is required. Please set it in Settings.');
     }
 
-    const { prompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const { prompt: builtPrompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+    const finalPrompt = panel.generated_prompt || builtPrompt;
     const model = settings.replicate_model || 'black-forest-labs/flux-schnell';
 
     // Call our Worker Proxy
@@ -24,7 +25,7 @@ export class ReplicateAdapter implements ImageGeneratorAdapter {
         backend: 'replicate',
         api_key: apiKey,
         model,
-        prompt,
+        prompt: finalPrompt,
         negative_prompt
       })
     });

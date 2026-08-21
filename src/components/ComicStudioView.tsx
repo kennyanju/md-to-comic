@@ -78,15 +78,28 @@ export const ComicStudioView: React.FC<ComicStudioViewProps> = ({
   };
 
   // Re-render canvas whenever page or layout changes
+  const panelsString = JSON.stringify(currentPage?.panels || []);
+  const layoutString = JSON.stringify(currentPage?.layout_config || {});
+
   useEffect(() => {
     const abortController = new AbortController();
     if (canvasRef.current && currentPage) {
-      renderComicPageToCanvas(canvasRef.current, currentPage, 1.0, abortController.signal).catch(err => {
+      renderComicPageToCanvas(canvasRef.current, currentPage, 1.0, abortController.signal).then(() => {
+        if (!abortController.signal.aborted && canvasRef.current) {
+          const dataUrl = canvasRef.current.toDataURL('image/png');
+          if (currentPage.assembled_image_url !== dataUrl) {
+            const updatedPages = pages.map(p => 
+              p.id === currentPage.id ? { ...p, assembled_image_url: dataUrl } : p
+            );
+            onPagesChange(updatedPages);
+          }
+        }
+      }).catch(err => {
         if (err.name !== 'AbortError') console.error(err);
       });
     }
     return () => abortController.abort();
-  }, [currentPage, currentPageIndex]);
+  }, [currentPageIndex, panelsString, layoutString]);
 
   const updateCurrentPageLayout = (updater: (cfg: typeof layout) => typeof layout) => {
     const updatedPages = pages.map((p, idx) => {
