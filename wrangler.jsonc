@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "md-to-comic",
+  "main": "workers/api/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "pages_build_output_dir": "dist",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "comic-db",
+      "database_id": "xxxx-xxxx-xxxx-xxxx"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "COMIC_ASSETS",
+      "bucket_name": "comic-assets"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "KEYS_KV",
+      "id": "xxxx-xxxx-xxxx-xxxx"
+    }
+  ],
+
+  "ai": {
+    "binding": "AI"
+  }
+}
