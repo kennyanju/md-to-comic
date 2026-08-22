@@ -192,6 +192,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
+          {/* Hugging Face Model Selector */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <label htmlFor="hf_model" style={{ fontWeight: 700, fontSize: '0.88rem' }}>Hugging Face Model</label>
+            <select
+              id="hf_model"
+              value={formData.hf_model || 'stabilityai/stable-diffusion-xl-base-1.0'}
+              onChange={(e) => handleChange('hf_model', e.target.value)}
+              style={{
+                background: 'rgba(15, 23, 42, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: '#ffffff',
+                padding: '0.6rem 0.8rem',
+                borderRadius: 'var(--radius-sm)'
+              }}
+            >
+              <option value="stabilityai/stable-diffusion-xl-base-1.0">stabilityai/stable-diffusion-xl-base-1.0 (Recommended)</option>
+              <option value="ByteDance/SDXL-Lightning">ByteDance/SDXL-Lightning (Ultra Fast)</option>
+              <option value="black-forest-labs/FLUX.1-schnell">black-forest-labs/FLUX.1-schnell (Partner Router)</option>
+              <option value="stabilityai/stable-diffusion-3.5-large">stabilityai/stable-diffusion-3.5-large</option>
+            </select>
+          </div>
+
           {/* Cloudflare Workers AI */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

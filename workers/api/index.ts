@@ -112,21 +112,30 @@ app.post('/api/generate-image', async (c) => {
     if (backend === 'huggingface') {
       const token = api_key || c.env.HF_ACCESS_TOKEN;
       if (!token) return c.json({ error: 'Hugging Face API token is required' }, 401);
-      const hfModel = body.model || 'black-forest-labs/FLUX.1-schnell';
+      const requestedModel = body.model || 'stabilityai/stable-diffusion-xl-base-1.0';
       
-      // Hugging Face migrated from api-inference.huggingface.co to router.huggingface.co/hf-inference/models/
-      const endpoints = [
-        `https://router.huggingface.co/hf-inference/models/${hfModel}`,
-        `https://router.huggingface.co/models/${hfModel}`,
-        `https://api-inference.huggingface.co/models/${hfModel}`
+      // Prioritize partner router providers, native hf-inference, and automatic SDXL fallback
+      const candidateEndpoints: Array<{ url: string; model: string }> = [
+        { url: `https://router.huggingface.co/fal-ai/models/${requestedModel}`, model: requestedModel },
+        { url: `https://router.huggingface.co/together/models/${requestedModel}`, model: requestedModel },
+        { url: `https://router.huggingface.co/hf-inference/models/${requestedModel}`, model: requestedModel },
+        { url: `https://router.huggingface.co/models/${requestedModel}`, model: requestedModel }
       ];
+
+      // If requested model is FLUX and gets deprecated by hf-inference, also attempt native SDXL
+      if (requestedModel.includes('FLUX') || requestedModel.includes('flux')) {
+        candidateEndpoints.push(
+          { url: 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0', model: 'stabilityai/stable-diffusion-xl-base-1.0' },
+          { url: 'https://router.huggingface.co/hf-inference/models/ByteDance/SDXL-Lightning', model: 'ByteDance/SDXL-Lightning' }
+        );
+      }
 
       let lastError = 'Image generation failed';
       let lastStatus = 500;
 
-      for (const endpoint of endpoints) {
+      for (const candidate of candidateEndpoints) {
         try {
-          const hfRes = await fetch(endpoint, {
+          const hfRes = await fetch(candidate.url, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -159,10 +168,12 @@ app.post('/api/generate-image', async (c) => {
             lastError = errText;
           }
 
-          // If error is 530 (Cloudflare DNS error on old domain) or 404, try next endpoint
-          if (hfRes.status !== 530 && hfRes.status !== 404) {
+          // If status is 401 (bad token), no need to retry other endpoints
+          if (hfRes.status === 401) {
             break;
           }
+
+          // For 410 (deprecated model on current provider), 404 (not on provider), 530 (DNS), or 503 (loading), continue to next candidate
         } catch (fetchErr: any) {
           lastError = fetchErr.message;
         }
