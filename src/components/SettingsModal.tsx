@@ -197,7 +197,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <label htmlFor="hf_model" style={{ fontWeight: 700, fontSize: '0.88rem' }}>Hugging Face Model</label>
             <select
               id="hf_model"
-              value={formData.hf_model || 'stabilityai/stable-diffusion-xl-base-1.0'}
+              value={formData.hf_model || 'black-forest-labs/FLUX.1-dev'}
               onChange={(e) => handleChange('hf_model', e.target.value)}
               style={{
                 background: 'rgba(15, 23, 42, 0.6)',
@@ -207,10 +207,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 borderRadius: 'var(--radius-sm)'
               }}
             >
-              <option value="stabilityai/stable-diffusion-xl-base-1.0">stabilityai/stable-diffusion-xl-base-1.0 (Recommended)</option>
-              <option value="ByteDance/SDXL-Lightning">ByteDance/SDXL-Lightning (Ultra Fast)</option>
-              <option value="black-forest-labs/FLUX.1-schnell">black-forest-labs/FLUX.1-schnell (Partner Router)</option>
-              <option value="stabilityai/stable-diffusion-3.5-large">stabilityai/stable-diffusion-3.5-large</option>
+              <option value="black-forest-labs/FLUX.1-dev">black-forest-labs/FLUX.1-dev (FLUX Dev - Recommended)</option>
+              <option value="black-forest-labs/FLUX.1-schnell">black-forest-labs/FLUX.1-schnell (FLUX Schnell)</option>
+              <option value="stabilityai/stable-diffusion-2-1">stabilityai/stable-diffusion-2-1 (Fast SD 2.1)</option>
+              <option value="runwayml/stable-diffusion-v1-5">runwayml/stable-diffusion-v1-5 (Classic SD 1.5)</option>
             </select>
           </div>
 

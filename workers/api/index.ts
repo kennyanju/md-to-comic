@@ -112,30 +112,32 @@ app.post('/api/generate-image', async (c) => {
     if (backend === 'huggingface') {
       const token = api_key || c.env.HF_ACCESS_TOKEN;
       if (!token) return c.json({ error: 'Hugging Face API token is required' }, 401);
-      const requestedModel = body.model || 'stabilityai/stable-diffusion-xl-base-1.0';
+      const requestedModel = body.model || 'black-forest-labs/FLUX.1-dev';
       
-      // Prioritize partner router providers, native hf-inference, and automatic SDXL fallback
-      const candidateEndpoints: Array<{ url: string; model: string }> = [
-        { url: `https://router.huggingface.co/fal-ai/models/${requestedModel}`, model: requestedModel },
-        { url: `https://router.huggingface.co/together/models/${requestedModel}`, model: requestedModel },
-        { url: `https://router.huggingface.co/hf-inference/models/${requestedModel}`, model: requestedModel },
-        { url: `https://router.huggingface.co/models/${requestedModel}`, model: requestedModel }
+      // Build candidate endpoints across router providers and verified models
+      const candidateUrls: string[] = [
+        // 1. Try requested model on third-party inference providers
+        `https://router.huggingface.co/together/models/${requestedModel}`,
+        `https://router.huggingface.co/replicate/models/${requestedModel}`,
+        `https://router.huggingface.co/fal-ai/models/${requestedModel}`,
+        `https://router.huggingface.co/hf-inference/models/${requestedModel}`,
+        `https://router.huggingface.co/models/${requestedModel}`,
+        // 2. Verified active Hugging Face Serverless models
+        'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-dev',
+        'https://router.huggingface.co/together/models/black-forest-labs/FLUX.1-schnell',
+        'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-1',
+        'https://router.huggingface.co/hf-inference/models/runwayml/stable-diffusion-v1-5'
       ];
 
-      // If requested model is FLUX and gets deprecated by hf-inference, also attempt native SDXL
-      if (requestedModel.includes('FLUX') || requestedModel.includes('flux')) {
-        candidateEndpoints.push(
-          { url: 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0', model: 'stabilityai/stable-diffusion-xl-base-1.0' },
-          { url: 'https://router.huggingface.co/hf-inference/models/ByteDance/SDXL-Lightning', model: 'ByteDance/SDXL-Lightning' }
-        );
-      }
+      // Deduplicate URLs while preserving order
+      const uniqueUrls = Array.from(new Set(candidateUrls));
 
       let lastError = 'Image generation failed';
       let lastStatus = 500;
 
-      for (const candidate of candidateEndpoints) {
+      for (const url of uniqueUrls) {
         try {
-          const hfRes = await fetch(candidate.url, {
+          const hfRes = await fetch(url, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
