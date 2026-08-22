@@ -13,6 +13,7 @@ import {
 import { ComicPage, PanelScript, ImageBackendType, UserSettings, CharacterRosterItem } from '../types/comic';
 import { AVAILABLE_BACKENDS, getImageGenerator } from '../lib/imageGenerators';
 import { getArtStyleById } from '../lib/artStyles';
+import { useToast } from './ToastContext';
 
 interface GenerationViewProps {
   pages: ComicPage[];
@@ -40,6 +41,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [generatingPanelIds, setGeneratingPanelIds] = useState<Set<string>>(new Set());
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const toast = useToast();
 
   const artStyle = getArtStyleById(selectedStyleId);
 
@@ -75,13 +77,15 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
         status: 'done',
         image_url: imageUrl
       }));
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Image generation failed';
       console.error(`Failed to generate panel ${panel.id}:`, err);
       updatePanelInPages(panel.id, pageIdx, p => ({
         ...p,
         status: 'failed',
-        error: err.message || 'Image generation failed'
+        error: errorMessage
       }));
+      toast.error(`Panel ${panel.panel_index} failed: ${errorMessage}`);
     } finally {
       setGeneratingPanelIds(prev => {
         const next = new Set(prev);
@@ -106,6 +110,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
     }
 
     setIsGeneratingAll(false);
+    toast.success('Visual panel batch processing completed.');
   };
 
   const generateFailedPanels = async () => {
@@ -140,7 +145,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
       <div className="view-header">
         <div className="view-title-group">
           <h1>
-            <ImageIcon color="#ec4899" size={28} />
+            <ImageIcon color="#ec4899" size={28} aria-hidden="true" />
             Step 4: Visual Panel Generation
           </h1>
           <p>
@@ -149,8 +154,8 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
         </div>
 
         <div className="view-actions">
-          <button className="btn btn-secondary" onClick={onBack} disabled={isGeneratingAll}>
-            <ArrowLeft size={16} />
+          <button className="btn btn-secondary" onClick={onBack} disabled={isGeneratingAll} type="button">
+            <ArrowLeft size={16} aria-hidden="true" />
             <span>Back</span>
           </button>
 
@@ -160,8 +165,9 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
               onClick={generateFailedPanels}
               disabled={isGeneratingAll}
               style={{ color: '#fda4af', borderColor: 'rgba(244, 63, 94, 0.4)' }}
+              type="button"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={16} aria-hidden="true" />
               <span>Retry Failed Only</span>
             </button>
           )}
@@ -170,8 +176,9 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
             className="btn btn-accent"
             onClick={generateAllPanels}
             disabled={isGeneratingAll}
+            type="button"
           >
-            <Sparkles size={16} />
+            <Sparkles size={16} aria-hidden="true" />
             <span>{isGeneratingAll ? 'Generating Panels...' : 'Generate / Retry All'}</span>
           </button>
 
@@ -179,9 +186,10 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
             className="btn btn-primary btn-lg"
             onClick={onProceed}
             disabled={completedCount === 0}
+            type="button"
           >
             <span>Open Comic Studio</span>
-            <ArrowRight size={18} />
+            <ArrowRight size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -190,9 +198,10 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Sliders size={18} color="#06b6d4" />
-            <span style={{ fontWeight: 700 }}>Inference Backend:</span>
+            <Sliders size={18} color="#06b6d4" aria-hidden="true" />
+            <label htmlFor="backend-select" style={{ fontWeight: 700 }}>Inference Backend:</label>
             <select
+              id="backend-select"
               value={settings.preferred_image_backend}
               onChange={(e) => onSettingsChange({ ...settings, preferred_image_backend: e.target.value as ImageBackendType })}
               style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
@@ -205,7 +214,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {settings.preferred_image_backend !== 'mock_demo' && (
-              <button className="btn btn-ghost btn-sm" onClick={onOpenSettingsModal} style={{ color: 'var(--accent-cyan)' }}>
+              <button className="btn btn-ghost btn-sm" onClick={onOpenSettingsModal} style={{ color: 'var(--accent-cyan)' }} type="button">
                 🔑 Configure API Key
               </button>
             )}
@@ -216,7 +225,14 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
         </div>
 
         {/* Visual Progress Track */}
-        <div style={{ width: '100%', height: '8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+        <div 
+          role="progressbar" 
+          aria-valuenow={progressPercent} 
+          aria-valuemin={0} 
+          aria-valuemax={100}
+          aria-label="Panel generation progress"
+          style={{ width: '100%', height: '8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}
+        >
           <div
             style={{
               height: '100%',
@@ -232,6 +248,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
       <div className="panel-cards-grid">
         {allPanels.map(({ panel, pageIdx }) => {
           const isPanelGenerating = generatingPanelIds.has(panel.id);
+          const panelAlt = `Page ${pageIdx + 1}, Panel ${panel.panel_index}: ${panel.scene_description || 'Comic artwork'}`;
 
           return (
             <div key={panel.id} className="panel-editor-card">
@@ -242,9 +259,9 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
                 </div>
 
                 <div>
-                  {panel.status === 'done' && <span className="badge badge-green"><CheckCircle2 size={12} /> Ready</span>}
-                  {panel.status === 'generating' && <span className="badge badge-amber"><RefreshCw size={12} className="spinning" /> Generating</span>}
-                  {panel.status === 'failed' && <span className="badge badge-red"><AlertCircle size={12} /> Failed</span>}
+                  {panel.status === 'done' && <span className="badge badge-green"><CheckCircle2 size={12} aria-hidden="true" /> Ready</span>}
+                  {panel.status === 'generating' && <span className="badge badge-amber"><RefreshCw size={12} className="spinning" aria-hidden="true" /> Generating</span>}
+                  {panel.status === 'failed' && <span className="badge badge-red"><AlertCircle size={12} aria-hidden="true" /> Failed</span>}
                   {panel.status === 'pending' && <span className="badge badge-purple">Pending</span>}
                 </div>
               </div>
@@ -253,7 +270,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
               <div className="panel-img-preview-box">
                 {panel.image_url ? (
                   <>
-                    <img src={panel.image_url} alt={`Panel ${panel.panel_index}`} />
+                    <img src={panel.image_url} alt={panelAlt} loading="lazy" />
                     <button
                       className="btn btn-ghost btn-sm"
                       onClick={() => setPreviewImageUrl(panel.image_url!)}
@@ -266,13 +283,15 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
                         borderRadius: 'var(--radius-sm)'
                       }}
                       title="View Full Size"
+                      aria-label="View full size image"
+                      type="button"
                     >
-                      <Maximize2 size={14} color="#ffffff" />
+                      <Maximize2 size={14} color="#ffffff" aria-hidden="true" />
                     </button>
                   </>
                 ) : (
                   <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>
-                    <ImageIcon size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.4 }} />
+                    <ImageIcon size={32} style={{ margin: '0 auto 0.5rem', opacity: 0.4 }} aria-hidden="true" />
                     <div style={{ fontSize: '0.85rem' }}>Image not yet generated</div>
                   </div>
                 )}
@@ -295,8 +314,9 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
                 onClick={() => generateSinglePanel(panel, pageIdx)}
                 disabled={isPanelGenerating || isGeneratingAll}
                 style={{ width: '100%' }}
+                type="button"
               >
-                <RefreshCw size={13} className={isPanelGenerating ? 'spinning' : ''} />
+                <RefreshCw size={13} className={isPanelGenerating ? 'spinning' : ''} aria-hidden="true" />
                 <span>{panel.image_url ? 'Regenerate Panel' : 'Generate This Panel'}</span>
               </button>
             </div>
@@ -306,17 +326,24 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
 
       {/* Fullscreen Preview Lightbox */}
       {previewImageUrl && (
-        <div className="modal-overlay" onClick={() => setPreviewImageUrl(null)}>
+        <div 
+          className="modal-overlay" 
+          onClick={() => setPreviewImageUrl(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Fullscreen image preview"
+        >
           <div style={{ maxWidth: '90vw', maxHeight: '90vh', position: 'relative' }} onClick={e => e.stopPropagation()}>
             <img
               src={previewImageUrl}
-              alt="Panel full view"
+              alt="Panel full view lightbox"
               style={{ maxWidth: '100%', maxHeight: '85vh', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)' }}
             />
             <button
               className="btn btn-secondary"
               onClick={() => setPreviewImageUrl(null)}
               style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.8)' }}
+              type="button"
             >
               Close
             </button>

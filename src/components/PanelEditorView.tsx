@@ -7,12 +7,10 @@ import {
   Trash2, 
   MessageSquare, 
   Sparkles, 
-  ChevronDown, 
-  ChevronUp, 
   Eye, 
   Camera 
 } from 'lucide-react';
-import { ComicPage, PanelScript, DialogueItem, ShotType, CharacterRosterItem } from '../types/comic';
+import { ComicPage, PanelScript, DialogueItem, ShotType, CharacterRosterItem, BubbleType } from '../types/comic';
 import { getArtStyleById } from '../lib/artStyles';
 import { buildImageGenerationPrompt } from '../lib/promptBuilder';
 
@@ -74,7 +72,12 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
     }));
   };
 
-  const updateDialogueItem = (panelId: string, dlgId: string, field: keyof DialogueItem, value: any) => {
+  const updateDialogueItem = <K extends keyof DialogueItem>(
+    panelId: string, 
+    dlgId: string, 
+    field: K, 
+    value: DialogueItem[K]
+  ) => {
     updatePanel(panelId, p => ({
       ...p,
       dialogue: p.dialogue.map(d => d.id === dlgId ? { ...d, [field]: value } : d)
@@ -127,7 +130,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
       <div className="view-header">
         <div className="view-title-group">
           <h1>
-            <LayoutGrid color="#f59e0b" size={28} />
+            <LayoutGrid color="#f59e0b" size={28} aria-hidden="true" />
             Step 3: Script Review & Panel Refinement
           </h1>
           <p>
@@ -136,26 +139,30 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
         </div>
 
         <div className="view-actions">
-          <button className="btn btn-secondary" onClick={onBack}>
-            <ArrowLeft size={16} />
+          <button className="btn btn-secondary" onClick={onBack} type="button">
+            <ArrowLeft size={16} aria-hidden="true" />
             <span>Back</span>
           </button>
 
-          <button className="btn btn-primary btn-lg" onClick={onProceed}>
+          <button className="btn btn-primary btn-lg" onClick={onProceed} type="button">
             <span>Proceed to Image Generation</span>
-            <ArrowRight size={18} />
+            <ArrowRight size={18} aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {/* Page Tabs */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }} role="tablist" aria-label="Comic Pages">
           {pages.map((p, idx) => (
             <button
               key={p.id || idx}
+              role="tab"
+              aria-selected={selectedPageIndex === idx}
+              aria-controls={`page-panel-${idx}`}
               className={`btn ${selectedPageIndex === idx ? 'btn-primary' : 'btn-secondary'} btn-sm`}
               onClick={() => setSelectedPageIndex(idx)}
+              type="button"
             >
               <span>Page {p.page_index}: {p.title || `Scene ${p.page_index}`}</span>
               <span className="badge badge-purple" style={{ fontSize: '0.68rem', padding: '0.1rem 0.4rem' }}>
@@ -165,16 +172,16 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
           ))}
         </div>
 
-        <button className="btn btn-secondary btn-sm" onClick={addPanel}>
-          <Plus size={14} />
+        <button className="btn btn-secondary btn-sm" onClick={addPanel} type="button">
+          <Plus size={14} aria-hidden="true" />
           <span>Add Panel to Page {currentPage.page_index}</span>
         </button>
       </div>
 
       {/* Panel Cards Grid */}
-      <div className="panel-cards-grid">
+      <div className="panel-cards-grid" id={`page-panel-${selectedPageIndex}`}>
         {currentPage.panels.map((panel) => {
-          const { prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
+          buildImageGenerationPrompt(panel, characters, artStyle);
           const isExpanded = expandedPromptPanelId === panel.id;
 
           return (
@@ -190,15 +197,19 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                     className="btn btn-ghost btn-sm"
                     onClick={() => setExpandedPromptPanelId(isExpanded ? null : panel.id)}
                     title="View Image Generation Prompt"
+                    aria-label={`Toggle AI prompt for panel ${panel.panel_index}`}
+                    type="button"
                   >
-                    <Eye size={14} color="#06b6d4" />
+                    <Eye size={14} color="#06b6d4" aria-hidden="true" />
                   </button>
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => removePanel(panel.id)}
                     title="Delete Panel"
+                    aria-label={`Delete panel ${panel.panel_index}`}
+                    type="button"
                   >
-                    <Trash2 size={14} color="#f43f5e" />
+                    <Trash2 size={14} color="#f43f5e" aria-hidden="true" />
                   </button>
                 </div>
               </div>
@@ -206,10 +217,11 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
               {/* Shot Type & Mood */}
               <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '0.5rem' }}>
                 <div>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
-                    <Camera size={12} /> Camera Shot
+                  <label htmlFor={`shot-select-${panel.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
+                    <Camera size={12} aria-hidden="true" /> Camera Shot
                   </label>
                   <select
+                    id={`shot-select-${panel.id}`}
                     value={panel.shot_type}
                     onChange={(e) => updatePanel(panel.id, p => ({ ...p, shot_type: e.target.value as ShotType }))}
                     style={{ width: '100%', fontSize: '0.85rem' }}
@@ -221,10 +233,11 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                 </div>
 
                 <div>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
+                  <label htmlFor={`mood-input-${panel.id}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.2rem' }}>
                     Scene Mood
                   </label>
                   <input
+                    id={`mood-input-${panel.id}`}
                     type="text"
                     value={panel.mood}
                     onChange={(e) => updatePanel(panel.id, p => ({ ...p, mood: e.target.value }))}
@@ -236,10 +249,11 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
 
               {/* Scene Description (Visual Core) */}
               <div>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>
+                <label htmlFor={`scene-desc-${panel.id}`} style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.3rem' }}>
                   Visual Scene Description:
                 </label>
                 <textarea
+                  id={`scene-desc-${panel.id}`}
                   value={panel.scene_description}
                   onChange={(e) => updatePanel(panel.id, p => ({ ...p, scene_description: e.target.value }))}
                   rows={3}
@@ -250,10 +264,11 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
 
               {/* Narrator Caption */}
               <div>
-                <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                <label htmlFor={`caption-input-${panel.id}`} style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
                   Narrator Caption (Optional Top Box):
                 </label>
                 <input
+                  id={`caption-input-${panel.id}`}
                   type="text"
                   value={panel.caption || ''}
                   onChange={(e) => updatePanel(panel.id, p => ({ ...p, caption: e.target.value }))}
@@ -266,15 +281,16 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <MessageSquare size={13} color="#8b5cf6" />
+                    <MessageSquare size={13} color="#8b5cf6" aria-hidden="true" />
                     Speech Bubbles ({panel.dialogue.length})
                   </span>
                   <button
                     className="btn btn-ghost btn-sm"
                     style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
                     onClick={() => addDialogueItem(panel.id)}
+                    type="button"
                   >
-                    <Plus size={12} /> Add Line
+                    <Plus size={12} aria-hidden="true" /> Add Line
                   </button>
                 </div>
 
@@ -282,8 +298,9 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   <div key={dlg.id} className="panel-dialogue-item">
                     <select
                       value={dlg.type}
-                      onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'type', e.target.value)}
+                      onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'type', e.target.value as BubbleType)}
                       style={{ fontSize: '0.78rem', padding: '0.3rem', width: '85px' }}
+                      aria-label="Bubble Type"
                     >
                       <option value="speech">Speech</option>
                       <option value="shout">Shout 💥</option>
@@ -296,7 +313,9 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                       onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'speaker', e.target.value)}
                       placeholder="Speaker"
                       style={{ width: '80px', fontSize: '0.82rem', padding: '0.3rem 0.5rem' }}
-                    />
+                      aria-label="Speaker Name"
+                    >
+                    </input>
 
                     <input
                       type="text"
@@ -304,14 +323,17 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                       onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'line', e.target.value)}
                       placeholder="Dialogue line text..."
                       style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem' }}
+                      aria-label="Dialogue text"
                     />
 
                     <button
                       className="btn btn-ghost btn-sm"
                       onClick={() => removeDialogueItem(panel.id, dlg.id)}
                       style={{ padding: '0.2rem' }}
+                      aria-label="Remove speech bubble"
+                      type="button"
                     >
-                      <Trash2 size={13} color="#f43f5e" />
+                      <Trash2 size={13} color="#f43f5e" aria-hidden="true" />
                     </button>
                   </div>
                 ))}
@@ -321,7 +343,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
               {isExpanded && (
                 <div style={{ background: 'var(--bg-primary)', padding: '0.85rem', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-medium)', marginTop: '0.5rem' }}>
                   <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 700, marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <Sparkles size={12} />
+                    <Sparkles size={12} aria-hidden="true" />
                     Assembled AI Prompt (With Roster & Style):
                   </div>
                   <textarea

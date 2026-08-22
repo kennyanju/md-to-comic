@@ -1,58 +1,4 @@
-:root {
-  /* Core Color Palette */
-  --bg-darkest: #07060c;
-  --bg-primary: #0d0b18;
-  --bg-secondary: #151227;
-  --bg-card: #1d1836;
-  --bg-card-hover: #262046;
-  --bg-glass: rgba(21, 18, 39, 0.75);
-  --bg-glass-heavy: rgba(13, 11, 24, 0.85);
-
-  --border-subtle: rgba(139, 92, 246, 0.15);
-  --border-medium: rgba(139, 92, 246, 0.3);
-  --border-bright: rgba(168, 85, 247, 0.6);
-  --border-glass: rgba(255, 255, 255, 0.08);
-
-  /* Vivid Comic Brand Accents */
-  --accent-purple: #8b5cf6;
-  --accent-purple-glow: rgba(139, 92, 246, 0.4);
-  --accent-cyan: #06b6d4;
-  --accent-cyan-glow: rgba(6, 182, 212, 0.4);
-  --accent-amber: #f59e0b;
-  --accent-pink: #ec4899;
-  --accent-rose: #f43f5e;
-  --accent-emerald: #10b981;
-
-  /* Typography Colors */
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
-
-  /* Fonts */
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-comic-hero: 'Bangers', cursive, sans-serif;
-  --font-comic-body: 'Comic Neue', cursive, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-
-  /* Elevation Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.15);
-  --shadow-glow: 0 0 25px var(--accent-purple-glow);
-
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-full: 9999px;
-
-  /* Transitions */
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+@import './tokens.css';
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -78,6 +24,46 @@ body {
     radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.08) 0%, transparent 45%),
     radial-gradient(circle at 50% 50%, rgba(236, 72, 153, 0.04) 0%, transparent 60%);
   background-attachment: fixed;
+}
+
+/* Skip to Content Link (Accessibility) */
+.skip-to-content {
+  position: absolute;
+  top: -60px;
+  left: 1rem;
+  background: var(--accent-purple);
+  color: #ffffff;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  z-index: 9999;
+  text-decoration: none;
+  transition: top var(--transition-normal);
+  box-shadow: var(--shadow-lg);
+}
+
+.skip-to-content:focus {
+  top: 1rem;
+  outline: 3px solid var(--accent-cyan);
+}
+
+/* Screen Reader Only Utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus Visible Accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
 }
 
 /* Custom Scrollbars */
@@ -110,7 +96,7 @@ button {
 input, textarea, select {
   font-family: inherit;
   color: var(--text-primary);
-  background: var(--bg-secondary);
+  background: var(--bg-input);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   padding: 10px 14px;
@@ -136,4 +122,24 @@ a {
 }
 a:hover {
   color: var(--text-primary);
+}
+
+/* Loading Spinners */
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top-color: var(--accent-purple);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 3rem auto;
 }

@@ -21,8 +21,8 @@ export const WizardStepper: React.FC<WizardStepperProps> = ({
   maxReachedStep
 }) => {
   return (
-    <div className="stepper-container">
-      <div className="stepper-track">
+    <nav className="stepper-container" aria-label="Creation Wizard Steps">
+      <div className="stepper-track" role="list">
         {WIZARD_STEPS.map((step, idx) => {
           const Icon = step.icon;
           const isActive = currentStep === step.id;
@@ -31,25 +31,37 @@ export const WizardStepper: React.FC<WizardStepperProps> = ({
 
           return (
             <React.Fragment key={step.id}>
-              <button
-                className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
-                onClick={() => isAccessible && onStepClick(step.id)}
-                disabled={!isAccessible}
-              >
-                <div className="step-number">
-                  {isCompleted ? <Check size={13} strokeWidth={3} /> : idx + 1}
-                </div>
-                <Icon size={16} />
-                <span>{step.title}</span>
-              </button>
+              <div role="listitem" style={{ display: 'flex', alignItems: 'center' }}>
+                <button
+                  className={`step-item ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`}
+                  onClick={() => isAccessible && onStepClick(step.id)}
+                  disabled={!isAccessible}
+                  aria-current={isActive ? 'step' : undefined}
+                  aria-disabled={!isAccessible}
+                  aria-label={`Step ${idx + 1}: ${step.title}. ${isActive ? 'Current Step' : isCompleted ? 'Completed' : 'Locked'}`}
+                  type="button"
+                >
+                  <div className="step-number" aria-hidden="true">
+                    {isCompleted ? <Check size={13} strokeWidth={3} /> : idx + 1}
+                  </div>
+                  <Icon size={16} aria-hidden="true" />
+                  <span>{step.title}</span>
+                  <span className="sr-only">
+                    {isActive ? '(Current Step)' : isCompleted ? '(Completed)' : '(Locked)'}
+                  </span>
+                </button>
+              </div>
 
               {idx < WIZARD_STEPS.length - 1 && (
-                <div className={`step-connector ${maxReachedStep > idx ? 'completed' : ''}`} />
+                <div 
+                  className={`step-connector ${maxReachedStep > idx ? 'completed' : ''}`} 
+                  aria-hidden="true" 
+                />
               )}
             </React.Fragment>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 };

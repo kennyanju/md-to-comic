@@ -6,13 +6,14 @@ import { ScriptingView } from './components/ScriptingView';
 import { PanelEditorView } from './components/PanelEditorView';
 import { GenerationView } from './components/GenerationView';
 import { ProjectGalleryModal } from './components/ProjectGalleryModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastProvider, useToast } from './components/ToastContext';
 
 const ComicStudioView = React.lazy(() => import('./components/ComicStudioView').then(module => ({ default: module.ComicStudioView })));
 const ExportView = React.lazy(() => import('./components/ExportView').then(module => ({ default: module.ExportView })));
 const SettingsModal = React.lazy(() => import('./components/SettingsModal').then(module => ({ default: module.SettingsModal })));
 
-
-import { ComicProject, UserSettings, ComicPage } from './types/comic';
+import { ComicProject, UserSettings, ComicPage, PageLayoutType, BorderStyle } from './types/comic';
 import { parseMarkdownChunks } from './lib/markdownParser';
 import { generateComicScript } from './lib/llmClient';
 import { SAMPLE_STORIES } from './lib/sampleStories';
@@ -36,7 +37,7 @@ const INITIAL_PROJECT: ComicProject = {
   current_step: 0
 };
 
-export const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [project, setProject] = useState<ComicProject>(() => {
     return loadActiveProject() || INITIAL_PROJECT;
   });
@@ -48,6 +49,13 @@ export const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [maxReachedStep, setMaxReachedStep] = useState(project.current_step);
   const [panelsPerPage, setPanelsPerPage] = useState(settings.panelsPerPage || 4);
+  const toast = useToast();
+
+  // Dynamic document title update
+  useEffect(() => {
+    const title = project.title ? `${project.title} — MD to Comic Studio` : 'MD to Comic Studio';
+    document.title = title;
+  }, [project.title]);
 
   // Auto-parse characters and metadata on first load or when markdown changes if no characters exist
   useEffect(() => {
@@ -77,11 +85,14 @@ export const App: React.FC = () => {
   const handleSettingsSave = (newSettings: UserSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
+    toast.success('Settings updated successfully');
   };
 
   useEffect(() => {
     if (panelsPerPage !== settings.panelsPerPage) {
-      handleSettingsSave({ ...settings, panelsPerPage });
+      const updated = { ...settings, panelsPerPage };
+      setSettings(updated);
+      saveSettings(updated);
     }
   }, [panelsPerPage]);
 
@@ -119,7 +130,7 @@ export const App: React.FC = () => {
           targetPanels: panelsPerPage
         });
 
-        let defaultLayout: any = 'grid-4';
+        let defaultLayout: PageLayoutType = 'grid-4';
         if (project.selected_style_id === 'manga-anime' && panels.length === 6) defaultLayout = 'manga-6';
         else if (panels.length === 5) defaultLayout = 'action-5';
         else if (panels.length === 6) defaultLayout = 'manga-6';
@@ -127,7 +138,7 @@ export const App: React.FC = () => {
         else if (panels.length === 2) defaultLayout = 'hero-split-2';
         else if (panels.length === 1) defaultLayout = 'splash-1';
 
-        let defaultBorder: any = 'ink-gutter';
+        let defaultBorder: BorderStyle = 'ink-gutter';
         if (project.selected_style_id === 'cyberpunk-neon') defaultBorder = 'neon-glow';
         if (project.selected_style_id === 'manga-anime') defaultBorder = 'manga-clean';
         if (project.selected_style_id === 'noir-detective') defaultBorder = 'classic-black';
@@ -159,9 +170,10 @@ export const App: React.FC = () => {
         updated_at: Date.now()
       }));
       setMaxReachedStep(Math.max(maxReachedStep, 2));
+      toast.success('Script generated! Proceeding to Panel Review.');
     } catch (err) {
       console.error('Failed to generate script:', err);
-      alert('Failed to generate script. Check your API key and network connection.');
+      toast.error('Failed to generate script. Check your API key and connection.');
     } finally {
       setIsGeneratingScript(false);
     }
@@ -184,6 +196,7 @@ export const App: React.FC = () => {
       current_step: 0
     });
     setMaxReachedStep(0);
+    toast.info(`Loaded demo story: "${sample.title}"`);
   };
 
   const handleResetProject = () => {
@@ -204,6 +217,7 @@ export const App: React.FC = () => {
         current_step: 0
       });
       setMaxReachedStep(0);
+      toast.info('New comic project initiated');
     }
   };
 
@@ -224,11 +238,12 @@ export const App: React.FC = () => {
           setProject(imported);
           setMaxReachedStep(imported.current_step);
           saveProjectToGallery(imported);
+          toast.success(`Imported project: ${imported.title || 'Comic'}`);
         } else {
-          alert('Invalid project JSON file.');
+          toast.error('Invalid project JSON structure.');
         }
-      } catch (err) {
-        alert('Failed to parse JSON file.');
+      } catch {
+        toast.error('Failed to parse JSON file.');
       }
     };
     reader.readAsText(file);
@@ -239,6 +254,10 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
+      <a href="#main-viewport" className="skip-to-content">
+        Skip to main content
+      </a>
+
       <Navbar
         onOpenSettings={() => setIsSettingsOpen(true)}
         onResetProject={handleResetProject}
@@ -255,7 +274,7 @@ export const App: React.FC = () => {
         maxReachedStep={maxReachedStep}
       />
 
-      <main className="main-viewport">
+      <main id="main-viewport" className="main-viewport" tabIndex={-1}>
         {project.current_step === 0 && (
           <IngestionView
             markdown={project.raw_markdown}
@@ -309,7 +328,7 @@ export const App: React.FC = () => {
         )}
 
         {project.current_step === 4 && (
-          <Suspense fallback={<div className="loading-spinner" />}>
+          <Suspense fallback={<div className="loading-spinner" aria-label="Loading Comic Studio" />}>
             <ComicStudioView
               pages={project.pages}
               onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
@@ -357,4 +376,15 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </ErrorBoundary>
+  );
+};
+
 export default App;

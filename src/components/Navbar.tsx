@@ -21,9 +21,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   projectTitle
 }) => {
   return (
-    <header className="navbar">
+    <header className="navbar" role="banner">
       <div className="brand-section">
-        <div className="brand-icon-badge">
+        <div className="brand-icon-badge" aria-hidden="true">
           <BookOpen size={22} strokeWidth={2.5} />
         </div>
         <div>
@@ -34,40 +34,69 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {projectTitle && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="badge badge-purple">
-            <Layers size={12} /> {projectTitle}
+          <span className="badge badge-purple" aria-label={`Current Project: ${projectTitle}`}>
+            <Layers size={12} aria-hidden="true" /> {projectTitle}
           </span>
         </div>
       )}
 
-      <div className="nav-actions">
-        <button className="btn btn-secondary btn-sm" onClick={onQuickDemo} title="Load sample story with pre-configured settings">
-          <Sparkles size={14} color="#f59e0b" />
+      <nav className="nav-actions" aria-label="Main Actions">
+        <button 
+          className="btn btn-secondary btn-sm" 
+          onClick={onQuickDemo} 
+          title="Load sample story with pre-configured settings"
+          aria-label="Load Quick Demo Story"
+          type="button"
+        >
+          <Sparkles size={14} color="#f59e0b" aria-hidden="true" />
           <span>Quick Demo</span>
         </button>
 
         {hasPanels && (
-          <button className="btn btn-accent btn-sm" onClick={onOpenExport}>
-            <Download size={14} />
+          <button 
+            className="btn btn-accent btn-sm" 
+            onClick={onOpenExport}
+            aria-label="Export Comic as PDF or PNG"
+            type="button"
+          >
+            <Download size={14} aria-hidden="true" />
             <span>Export Comic</span>
           </button>
         )}
 
-        <button className="btn btn-ghost btn-sm" onClick={onOpenGallery} title="Open Project Gallery">
-          <Folder size={14} />
+        <button 
+          className="btn btn-ghost btn-sm" 
+          onClick={onOpenGallery} 
+          title="Open Project Gallery"
+          aria-label="Open Project Gallery"
+          type="button"
+        >
+          <Folder size={14} aria-hidden="true" />
           <span>Projects</span>
         </button>
 
-        <button className="btn btn-ghost btn-sm" onClick={onResetProject} title="Start new project">
-          <RotateCcw size={14} />
+        <button 
+          className="btn btn-ghost btn-sm" 
+          onClick={onResetProject} 
+          title="Start new project"
+          aria-label="Start New Project"
+          type="button"
+        >
+          <RotateCcw size={14} aria-hidden="true" />
           <span>New</span>
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={onOpenSettings} title="Configure API keys">
-          <Settings size={14} />
+        <button 
+          className="btn btn-secondary btn-sm" 
+          onClick={onOpenSettings} 
+          title="Configure API keys"
+          aria-label="Open API Keys & Settings"
+          type="button"
+        >
+          <Settings size={14} aria-hidden="true" />
           <span>Settings</span>
         </button>
-      </div>
+      </nav>
     </header>
   );
 };

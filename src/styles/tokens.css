@@ -1,0 +1,85 @@
+/* ==========================================================================
+   Design Tokens & Theme System — MD to Comic Studio
+   ========================================================================== */
+
+:root {
+  /* HSL Color Foundation */
+  --hue-base: 250;
+  --hue-accent-purple: 263;
+  --hue-accent-cyan: 189;
+  --hue-accent-amber: 38;
+  --hue-accent-rose: 350;
+  --hue-accent-emerald: 160;
+
+  /* Surfaces & Dark Mode Backgrounds */
+  --bg-darkest: hsl(var(--hue-base), 35%, 4%);
+  --bg-primary: hsl(var(--hue-base), 30%, 7%);
+  --bg-secondary: hsl(var(--hue-base), 25%, 11%);
+  --bg-card: hsl(var(--hue-base), 22%, 15%);
+  --bg-card-hover: hsl(var(--hue-base), 20%, 20%);
+  --bg-input: hsl(var(--hue-base), 28%, 9%);
+
+  /* Glassmorphism Layers */
+  --bg-glass: hsla(var(--hue-base), 25%, 12%, 0.72);
+  --bg-glass-heavy: hsla(var(--hue-base), 30%, 8%, 0.88);
+  --bg-glass-card: hsla(var(--hue-base), 22%, 16%, 0.65);
+  --glass-blur: 16px;
+  --glass-blur-heavy: 24px;
+
+  /* Borders & Dividers */
+  --border-subtle: hsla(var(--hue-accent-purple), 80%, 70%, 0.12);
+  --border-medium: hsla(var(--hue-accent-purple), 80%, 70%, 0.25);
+  --border-bright: hsla(var(--hue-accent-purple), 85%, 72%, 0.55);
+  --border-glass: rgba(255, 255, 255, 0.08);
+
+  /* Vivid Accents & Glows */
+  --accent-purple: hsl(var(--hue-accent-purple), 90%, 66%);
+  --accent-purple-hover: hsl(var(--hue-accent-purple), 95%, 72%);
+  --accent-purple-glow: hsla(var(--hue-accent-purple), 90%, 66%, 0.35);
+
+  --accent-cyan: hsl(var(--hue-accent-cyan), 94%, 43%);
+  --accent-cyan-hover: hsl(var(--hue-accent-cyan), 95%, 52%);
+  --accent-cyan-glow: hsla(var(--hue-accent-cyan), 94%, 43%, 0.35);
+
+  --accent-amber: hsl(var(--hue-accent-amber), 92%, 50%);
+  --accent-amber-hover: hsl(var(--hue-accent-amber), 95%, 58%);
+  --accent-amber-glow: hsla(var(--hue-accent-amber), 92%, 50%, 0.35);
+
+  --accent-rose: hsl(var(--hue-accent-rose), 89%, 60%);
+  --accent-rose-glow: hsla(var(--hue-accent-rose), 89%, 60%, 0.35);
+
+  --accent-emerald: hsl(var(--hue-accent-emerald), 84%, 39%);
+  --accent-emerald-glow: hsla(var(--hue-accent-emerald), 84%, 39%, 0.35);
+
+  /* Typography Palette */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  /* Font Families */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-comic-hero: 'Bangers', cursive, sans-serif;
+  --font-comic-body: 'Comic Neue', cursive, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px var(--accent-purple-glow);
+  --shadow-glow: 0 0 25px var(--accent-purple-glow);
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Transitions & Animation Easing */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
