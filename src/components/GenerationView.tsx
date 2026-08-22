@@ -8,18 +8,22 @@ import {
   CheckCircle2, 
   AlertCircle, 
   Maximize2,
-  Sliders
+  Sliders,
+  Palette
 } from 'lucide-react';
 import { ComicPage, PanelScript, ImageBackendType, UserSettings, CharacterRosterItem } from '../types/comic';
 import { AVAILABLE_BACKENDS, getImageGenerator } from '../lib/imageGenerators';
-import { getArtStyleById } from '../lib/artStyles';
+import { getArtStyleById, ART_STYLES } from '../lib/artStyles';
+import { savePanelImage } from '../lib/imageDb';
 import { useToast } from './ToastContext';
+import { usePanelUpdater } from '../hooks/usePanelUpdater';
 
 interface GenerationViewProps {
   pages: ComicPage[];
   onPagesChange: (pages: ComicPage[]) => void;
   characters: CharacterRosterItem[];
   selectedStyleId: string;
+  onStyleSelect?: (styleId: string) => void;
   settings: UserSettings;
   onSettingsChange: (settings: UserSettings) => void;
   onBack: () => void;
@@ -32,6 +36,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
   onPagesChange,
   characters,
   selectedStyleId,
+  onStyleSelect,
   settings,
   onSettingsChange,
   onBack,
@@ -43,6 +48,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const toast = useToast();
 
+  const { updatePanel } = usePanelUpdater(pages, onPagesChange);
   const artStyle = getArtStyleById(selectedStyleId);
 
   // Flatten all panels
@@ -61,7 +67,7 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
     setGeneratingPanelIds(prev => new Set(prev).add(panel.id));
 
     // Update panel status to generating
-    updatePanelInPages(panel.id, pageIdx, p => ({ ...p, status: 'generating', error: undefined }));
+    updatePanel(panel.id, p => ({ ...p, status: 'generating', error: undefined }), pageIdx);
 
     try {
       const generator = getImageGenerator(settings.preferred_image_backend);
@@ -72,19 +78,22 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
         settings
       });
 
-      updatePanelInPages(panel.id, pageIdx, p => ({
+      // Save to IndexedDB for persistent caching outside localStorage
+      await savePanelImage(panel.id, imageUrl);
+
+      updatePanel(panel.id, p => ({
         ...p,
         status: 'done',
         image_url: imageUrl
-      }));
+      }), pageIdx);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Image generation failed';
       console.error(`Failed to generate panel ${panel.id}:`, err);
-      updatePanelInPages(panel.id, pageIdx, p => ({
+      updatePanel(panel.id, p => ({
         ...p,
         status: 'failed',
         error: errorMessage
-      }));
+      }), pageIdx);
       toast.error(`Panel ${panel.panel_index} failed: ${errorMessage}`);
     } finally {
       setGeneratingPanelIds(prev => {
@@ -126,18 +135,6 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
     }
 
     setIsGeneratingAll(false);
-  };
-
-  const updatePanelInPages = (panelId: string, pageIdx: number, updater: (p: PanelScript) => PanelScript) => {
-    onPagesChange(
-      pages.map((pg, idx) => {
-        if (idx !== pageIdx) return pg;
-        return {
-          ...pg,
-          panels: pg.panels.map(p => p.id === panelId ? updater(p) : p)
-        };
-      })
-    );
   };
 
   return (
@@ -197,19 +194,38 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
       {/* Backend & Progress Bar */}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <Sliders size={18} color="#06b6d4" aria-hidden="true" />
-            <label htmlFor="backend-select" style={{ fontWeight: 700 }}>Inference Backend:</label>
-            <select
-              id="backend-select"
-              value={settings.preferred_image_backend}
-              onChange={(e) => onSettingsChange({ ...settings, preferred_image_backend: e.target.value as ImageBackendType })}
-              style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
-            >
-              {AVAILABLE_BACKENDS.map(b => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <Sliders size={18} color="#06b6d4" aria-hidden="true" />
+              <label htmlFor="backend-select" style={{ fontWeight: 700 }}>Inference Backend:</label>
+              <select
+                id="backend-select"
+                value={settings.preferred_image_backend}
+                onChange={(e) => onSettingsChange({ ...settings, preferred_image_backend: e.target.value as ImageBackendType })}
+                style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+              >
+                {AVAILABLE_BACKENDS.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {onStyleSelect && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Palette size={16} color="#8b5cf6" aria-hidden="true" />
+                <label htmlFor="style-select" style={{ fontWeight: 700 }}>Art Style:</label>
+                <select
+                  id="style-select"
+                  value={selectedStyleId}
+                  onChange={(e) => onStyleSelect(e.target.value)}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}
+                >
+                  {ART_STYLES.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

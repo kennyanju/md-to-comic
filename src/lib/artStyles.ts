@@ -60,3 +60,5 @@ export const ART_STYLE_PRESETS: ArtStylePreset[] = [
 export const getArtStyleById = (id: string): ArtStylePreset => {
   return ART_STYLE_PRESETS.find(s => s.id === id) || ART_STYLE_PRESETS[0];
 };
+
+export const ART_STYLES = ART_STYLE_PRESETS;

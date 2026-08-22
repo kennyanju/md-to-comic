@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { 
   loadSettings, 
+  loadDecryptedSettings,
   saveSettings, 
   DEFAULT_SETTINGS, 
   loadActiveProject, 
@@ -36,14 +37,14 @@ describe('storage', () => {
     expect(settings).toEqual(DEFAULT_SETTINGS);
   });
 
-  it('persists and retrieves user settings correctly', () => {
+  it('persists and retrieves user settings correctly', async () => {
     const customSettings = {
       ...DEFAULT_SETTINGS,
       openrouter_key: 'sk-test-12345',
       preferred_llm_model: 'anthropic/claude-3.5-sonnet'
     };
-    saveSettings(customSettings);
-    const loaded = loadSettings();
+    await saveSettings(customSettings);
+    const loaded = await loadDecryptedSettings();
     expect(loaded.openrouter_key).toBe('sk-test-12345');
     expect(loaded.preferred_llm_model).toBe('anthropic/claude-3.5-sonnet');
   });
@@ -69,7 +70,7 @@ describe('storage', () => {
     expect(loaded?.title).toBe('Test Cyber Comic');
   });
 
-  it('saves, loads, and deletes projects from gallery', () => {
+  it('saves, loads, and deletes projects from gallery', async () => {
     const project: ComicProject = {
       id: 'proj-gallery-1',
       title: 'Gallery Comic',
@@ -88,11 +89,11 @@ describe('storage', () => {
     expect(list.length).toBe(1);
     expect(list[0].id).toBe('proj-gallery-1');
 
-    const loaded = loadProjectFromGallery('proj-gallery-1');
+    const loaded = await loadProjectFromGallery('proj-gallery-1');
     expect(loaded?.id).toBe('proj-gallery-1');
 
     deleteProject('proj-gallery-1');
     expect(listSavedProjects().length).toBe(0);
-    expect(loadProjectFromGallery('proj-gallery-1')).toBeNull();
+    expect(await loadProjectFromGallery('proj-gallery-1')).toBeNull();
   });
 });

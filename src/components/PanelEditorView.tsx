@@ -8,17 +8,22 @@ import {
   MessageSquare, 
   Sparkles, 
   Eye, 
-  Camera 
+  Camera,
+  ChevronUp,
+  ChevronDown,
+  Palette
 } from 'lucide-react';
-import { ComicPage, PanelScript, DialogueItem, ShotType, CharacterRosterItem, BubbleType } from '../types/comic';
-import { getArtStyleById } from '../lib/artStyles';
+import { ComicPage, ShotType, CharacterRosterItem, BubbleType } from '../types/comic';
+import { getArtStyleById, ART_STYLES } from '../lib/artStyles';
 import { buildImageGenerationPrompt } from '../lib/promptBuilder';
+import { usePanelUpdater } from '../hooks/usePanelUpdater';
 
 interface PanelEditorViewProps {
   pages: ComicPage[];
   onPagesChange: (pages: ComicPage[]) => void;
   characters: CharacterRosterItem[];
   selectedStyleId: string;
+  onStyleSelect?: (styleId: string) => void;
   onBack: () => void;
   onProceed: () => void;
 }
@@ -37,92 +42,54 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
   onPagesChange,
   characters,
   selectedStyleId,
+  onStyleSelect,
   onBack,
   onProceed
 }) => {
   const [selectedPageIndex, setSelectedPageIndex] = useState(0);
   const [expandedPromptPanelId, setExpandedPromptPanelId] = useState<string | null>(null);
 
+  const {
+    updatePanel,
+    addPanel,
+    removePanel,
+    reorderPanels,
+    addDialogueItem,
+    updateDialogueItem,
+    removeDialogueItem
+  } = usePanelUpdater(pages, onPagesChange);
+
   const currentPage = pages[selectedPageIndex] || pages[0];
   const artStyle = getArtStyleById(selectedStyleId);
 
-  const updatePanel = (panelId: string, updater: (p: PanelScript) => PanelScript) => {
-    const newPages = pages.map((page, pIdx) => {
-      if (pIdx !== selectedPageIndex) return page;
+  const handleShotChange = (panelId: string, shot_type: ShotType) => {
+    updatePanel(panelId, p => {
+      const updated = { ...p, shot_type };
       return {
-        ...page,
-        panels: page.panels.map(panel => panel.id === panelId ? updater(panel) : panel)
+        ...updated,
+        generated_prompt: buildImageGenerationPrompt(updated, characters, artStyle).prompt
       };
-    });
-    onPagesChange(newPages);
+    }, selectedPageIndex);
   };
 
-  const addDialogueItem = (panelId: string) => {
-    updatePanel(panelId, p => ({
-      ...p,
-      dialogue: [
-        ...p.dialogue,
-        {
-          id: `dlg-${Date.now()}`,
-          speaker: characters[0]?.name || 'Hero',
-          line: 'New dialogue line...',
-          type: 'speech'
-        }
-      ]
-    }));
-  };
-
-  const updateDialogueItem = <K extends keyof DialogueItem>(
-    panelId: string, 
-    dlgId: string, 
-    field: K, 
-    value: DialogueItem[K]
-  ) => {
-    updatePanel(panelId, p => ({
-      ...p,
-      dialogue: p.dialogue.map(d => d.id === dlgId ? { ...d, [field]: value } : d)
-    }));
-  };
-
-  const removeDialogueItem = (panelId: string, dlgId: string) => {
-    updatePanel(panelId, p => ({
-      ...p,
-      dialogue: p.dialogue.filter(d => d.id !== dlgId)
-    }));
-  };
-
-  const addPanel = () => {
-    const newPanel: PanelScript = {
-      id: `panel-${currentPage.page_index}-${currentPage.panels.length + 1}-${Date.now()}`,
-      panel_index: currentPage.panels.length + 1,
-      page_index: currentPage.page_index,
-      shot_type: 'medium',
-      scene_description: 'Action scene with dramatic lighting.',
-      mood: 'Intense',
-      dialogue: [],
-      character_tags: [characters[0]?.name || 'Hero'],
-      generated_prompt: 'Medium shot of comic hero standing resolute.',
-      status: 'pending'
-    };
-
-    const newPages = pages.map((page, pIdx) => {
-      if (pIdx !== selectedPageIndex) return page;
-      return { ...page, panels: [...page.panels, newPanel] };
-    });
-    onPagesChange(newPages);
-  };
-
-  const removePanel = (panelId: string) => {
-    const newPages = pages.map((page, pIdx) => {
-      if (pIdx !== selectedPageIndex) return page;
+  const handleSceneDescChange = (panelId: string, scene_description: string) => {
+    updatePanel(panelId, p => {
+      const updated = { ...p, scene_description };
       return {
-        ...page,
-        panels: page.panels
-          .filter(p => p.id !== panelId)
-          .map((p, idx) => ({ ...p, panel_index: idx + 1 }))
+        ...updated,
+        generated_prompt: buildImageGenerationPrompt(updated, characters, artStyle).prompt
       };
-    });
-    onPagesChange(newPages);
+    }, selectedPageIndex);
+  };
+
+  const handleMoodChange = (panelId: string, mood: string) => {
+    updatePanel(panelId, p => {
+      const updated = { ...p, mood };
+      return {
+        ...updated,
+        generated_prompt: buildImageGenerationPrompt(updated, characters, artStyle).prompt
+      };
+    }, selectedPageIndex);
   };
 
   return (
@@ -139,6 +106,22 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
         </div>
 
         <div className="view-actions">
+          {onStyleSelect && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Palette size={16} color="var(--accent-purple)" aria-hidden="true" />
+              <select
+                value={selectedStyleId}
+                onChange={(e) => onStyleSelect(e.target.value)}
+                style={{ fontSize: '0.85rem', padding: '0.4rem 0.7rem' }}
+                aria-label="Change Art Style"
+              >
+                {ART_STYLES.map(st => (
+                  <option key={st.id} value={st.id}>{st.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <button className="btn btn-secondary" onClick={onBack} type="button">
             <ArrowLeft size={16} aria-hidden="true" />
             <span>Back</span>
@@ -172,7 +155,11 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
           ))}
         </div>
 
-        <button className="btn btn-secondary btn-sm" onClick={addPanel} type="button">
+        <button 
+          className="btn btn-secondary btn-sm" 
+          onClick={() => addPanel(selectedPageIndex, characters[0]?.name || 'Hero')} 
+          type="button"
+        >
           <Plus size={14} aria-hidden="true" />
           <span>Add Panel to Page {currentPage.page_index}</span>
         </button>
@@ -180,8 +167,8 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
 
       {/* Panel Cards Grid */}
       <div className="panel-cards-grid" id={`page-panel-${selectedPageIndex}`}>
-        {currentPage.panels.map((panel) => {
-          buildImageGenerationPrompt(panel, characters, artStyle);
+        {currentPage.panels.map((panel, panelIdx) => {
+          const livePrompt = panel.generated_prompt || buildImageGenerationPrompt(panel, characters, artStyle).prompt;
           const isExpanded = expandedPromptPanelId === panel.id;
 
           return (
@@ -192,7 +179,32 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   <span className="badge badge-cyan">{panel.shot_type}</span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  {/* Reorder Buttons */}
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => reorderPanels(selectedPageIndex, panelIdx, panelIdx - 1)}
+                    disabled={panelIdx === 0}
+                    title="Move Panel Up"
+                    aria-label={`Move panel ${panel.panel_index} up`}
+                    type="button"
+                    style={{ padding: '0.2rem' }}
+                  >
+                    <ChevronUp size={14} aria-hidden="true" />
+                  </button>
+
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => reorderPanels(selectedPageIndex, panelIdx, panelIdx + 1)}
+                    disabled={panelIdx === currentPage.panels.length - 1}
+                    title="Move Panel Down"
+                    aria-label={`Move panel ${panel.panel_index} down`}
+                    type="button"
+                    style={{ padding: '0.2rem' }}
+                  >
+                    <ChevronDown size={14} aria-hidden="true" />
+                  </button>
+
                   <button
                     className="btn btn-ghost btn-sm"
                     onClick={() => setExpandedPromptPanelId(isExpanded ? null : panel.id)}
@@ -202,9 +214,10 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   >
                     <Eye size={14} color="#06b6d4" aria-hidden="true" />
                   </button>
+
                   <button
                     className="btn btn-ghost btn-sm"
-                    onClick={() => removePanel(panel.id)}
+                    onClick={() => removePanel(panel.id, selectedPageIndex)}
                     title="Delete Panel"
                     aria-label={`Delete panel ${panel.panel_index}`}
                     type="button"
@@ -223,7 +236,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   <select
                     id={`shot-select-${panel.id}`}
                     value={panel.shot_type}
-                    onChange={(e) => updatePanel(panel.id, p => ({ ...p, shot_type: e.target.value as ShotType }))}
+                    onChange={(e) => handleShotChange(panel.id, e.target.value as ShotType)}
                     style={{ width: '100%', fontSize: '0.85rem' }}
                   >
                     {SHOT_OPTIONS.map(opt => (
@@ -240,7 +253,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                     id={`mood-input-${panel.id}`}
                     type="text"
                     value={panel.mood}
-                    onChange={(e) => updatePanel(panel.id, p => ({ ...p, mood: e.target.value }))}
+                    onChange={(e) => handleMoodChange(panel.id, e.target.value)}
                     placeholder="e.g. Dramatic"
                     style={{ width: '100%', fontSize: '0.85rem' }}
                   />
@@ -255,7 +268,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                 <textarea
                   id={`scene-desc-${panel.id}`}
                   value={panel.scene_description}
-                  onChange={(e) => updatePanel(panel.id, p => ({ ...p, scene_description: e.target.value }))}
+                  onChange={(e) => handleSceneDescChange(panel.id, e.target.value)}
                   rows={3}
                   placeholder="Describe visual composition, character poses, background, lighting..."
                   style={{ width: '100%', fontSize: '0.86rem' }}
@@ -271,7 +284,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   id={`caption-input-${panel.id}`}
                   type="text"
                   value={panel.caption || ''}
-                  onChange={(e) => updatePanel(panel.id, p => ({ ...p, caption: e.target.value }))}
+                  onChange={(e) => updatePanel(panel.id, p => ({ ...p, caption: e.target.value }), selectedPageIndex)}
                   placeholder="Meanwhile, deep within the obsidian core..."
                   style={{ width: '100%', fontSize: '0.85rem' }}
                 />
@@ -287,7 +300,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   <button
                     className="btn btn-ghost btn-sm"
                     style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}
-                    onClick={() => addDialogueItem(panel.id)}
+                    onClick={() => addDialogueItem(panel.id, selectedPageIndex, characters[0]?.name || 'Hero')}
                     type="button"
                   >
                     <Plus size={12} aria-hidden="true" /> Add Line
@@ -298,7 +311,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                   <div key={dlg.id} className="panel-dialogue-item">
                     <select
                       value={dlg.type}
-                      onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'type', e.target.value as BubbleType)}
+                      onChange={(e) => updateDialogueItem(panel.id, selectedPageIndex, dlg.id, 'type', e.target.value as BubbleType)}
                       style={{ fontSize: '0.78rem', padding: '0.3rem', width: '85px' }}
                       aria-label="Bubble Type"
                     >
@@ -310,17 +323,16 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                     <input
                       type="text"
                       value={dlg.speaker}
-                      onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'speaker', e.target.value)}
+                      onChange={(e) => updateDialogueItem(panel.id, selectedPageIndex, dlg.id, 'speaker', e.target.value)}
                       placeholder="Speaker"
                       style={{ width: '80px', fontSize: '0.82rem', padding: '0.3rem 0.5rem' }}
                       aria-label="Speaker Name"
-                    >
-                    </input>
+                    />
 
                     <input
                       type="text"
                       value={dlg.line}
-                      onChange={(e) => updateDialogueItem(panel.id, dlg.id, 'line', e.target.value)}
+                      onChange={(e) => updateDialogueItem(panel.id, selectedPageIndex, dlg.id, 'line', e.target.value)}
                       placeholder="Dialogue line text..."
                       style={{ flex: 1, fontSize: '0.82rem', padding: '0.3rem 0.5rem' }}
                       aria-label="Dialogue text"
@@ -328,7 +340,7 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
 
                     <button
                       className="btn btn-ghost btn-sm"
-                      onClick={() => removeDialogueItem(panel.id, dlg.id)}
+                      onClick={() => removeDialogueItem(panel.id, selectedPageIndex, dlg.id)}
                       style={{ padding: '0.2rem' }}
                       aria-label="Remove speech bubble"
                       type="button"
@@ -347,8 +359,8 @@ export const PanelEditorView: React.FC<PanelEditorViewProps> = ({
                     Assembled AI Prompt (With Roster & Style):
                   </div>
                   <textarea
-                    value={panel.generated_prompt}
-                    onChange={(e) => updatePanel(panel.id, p => ({ ...p, generated_prompt: e.target.value }))}
+                    value={livePrompt}
+                    onChange={(e) => updatePanel(panel.id, p => ({ ...p, generated_prompt: e.target.value }), selectedPageIndex)}
                     rows={4}
                     style={{ 
                       width: '100%', 

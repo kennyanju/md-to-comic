@@ -60,4 +60,20 @@ Kira nodded firmly. "I already bypassed their security firewall," Kira answered.
     const names = parsed.detectedCharacters.map(c => c.name);
     expect(names).toContain('Jax');
   });
+
+  it('detects characters with titles, honorifics, and hyphenated names', () => {
+    const raw = `
+# Act 1
+Dr. Voss scanned the datapad carefully.
+"The core is stabilizing," Professor Ada whispered.
+Captain Jean-Luc ordered the shields up.
+ZARA: "All systems green."
+`;
+
+    const parsed = parseMarkdownChunks(raw);
+    const names = parsed.detectedCharacters.map(c => c.name);
+    expect(names.some(n => n.includes('Dr. Voss'))).toBe(true);
+    expect(names.some(n => n.includes('Professor Ada'))).toBe(true);
+    expect(names.some(n => n.includes('Captain Jean-Luc'))).toBe(true);
+  });
 });

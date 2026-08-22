@@ -17,7 +17,18 @@ import { ComicProject, UserSettings, ComicPage, PageLayoutType, BorderStyle } fr
 import { parseMarkdownChunks } from './lib/markdownParser';
 import { generateComicScript } from './lib/llmClient';
 import { SAMPLE_STORIES } from './lib/sampleStories';
-import { loadSettings, saveSettings, loadActiveProject, saveActiveProject, loadProjectFromGallery, saveProjectToGallery } from './lib/storage';
+import { 
+  loadSettings, 
+  loadDecryptedSettings,
+  saveSettings, 
+  loadActiveProject, 
+  loadHydratedActiveProject,
+  saveActiveProject, 
+  loadProjectFromGallery, 
+  saveProjectToGallery 
+} from './lib/storage';
+import { generateUUID } from './lib/crypto';
+import { useUndoRedo } from './hooks/useUndoRedo';
 
 import './styles/index.css';
 import './styles/app.css';
@@ -25,7 +36,7 @@ import './styles/components.css';
 import './styles/comicStudio.css';
 
 const INITIAL_PROJECT: ComicProject = {
-  id: `proj-${Date.now()}`,
+  id: `proj-${generateUUID()}`,
   title: 'Neon Protocol: The Ghost Chip',
   created_at: Date.now(),
   updated_at: Date.now(),
@@ -38,9 +49,16 @@ const INITIAL_PROJECT: ComicProject = {
 };
 
 const AppContent: React.FC = () => {
-  const [project, setProject] = useState<ComicProject>(() => {
+  const {
+    state: project,
+    setState: setProject,
+    undo,
+    redo,
+    canUndo,
+    canRedo
+  } = useUndoRedo<ComicProject>(() => {
     return loadActiveProject() || INITIAL_PROJECT;
-  });
+  }, { maxHistory: 40, debounceMs: 500 });
 
   const [settings, setSettings] = useState<UserSettings>(loadSettings);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
@@ -57,7 +75,20 @@ const AppContent: React.FC = () => {
     document.title = title;
   }, [project.title]);
 
-  // Auto-parse characters and metadata on first load or when markdown changes if no characters exist
+  // Initial load: hydrate project with IndexedDB images and decrypted settings
+  useEffect(() => {
+    loadHydratedActiveProject().then(hydrated => {
+      if (hydrated) {
+        setProject(hydrated, false);
+      }
+    }).catch(console.warn);
+
+    loadDecryptedSettings().then(decrypted => {
+      setSettings(decrypted);
+    }).catch(console.warn);
+  }, []);
+
+  // Auto-parse characters and metadata on first load if markdown is present without characters
   useEffect(() => {
     if (project.characters.length === 0 && project.raw_markdown) {
       const parsed = parseMarkdownChunks(project.raw_markdown);
@@ -66,7 +97,7 @@ const AppContent: React.FC = () => {
         metadata: parsed.metadata,
         characters: parsed.detectedCharacters,
         title: (parsed.metadata.title as string) || 'Comic Story'
-      }));
+      }), false);
       
       if (parsed.metadata.panels_per_page && typeof parsed.metadata.panels_per_page === 'number') {
         setPanelsPerPage(parsed.metadata.panels_per_page);
@@ -85,7 +116,7 @@ const AppContent: React.FC = () => {
   const handleSettingsSave = (newSettings: UserSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
-    toast.success('Settings updated successfully');
+    toast.success('Settings updated & encrypted successfully');
   };
 
   useEffect(() => {
@@ -106,6 +137,15 @@ const AppContent: React.FC = () => {
       title: (parsed.metadata.title as string) || prev.title,
       updated_at: Date.now()
     }));
+  };
+
+  const handleStyleSelect = (styleId: string) => {
+    setProject(prev => ({
+      ...prev,
+      selected_style_id: styleId,
+      updated_at: Date.now()
+    }));
+    toast.info(`Art style set to "${styleId}".`);
   };
 
   const handleRunScriptGeneration = async () => {
@@ -144,7 +184,7 @@ const AppContent: React.FC = () => {
         if (project.selected_style_id === 'noir-detective') defaultBorder = 'classic-black';
 
         return {
-          id: `page-${i + 1}-${Date.now()}`,
+          id: `page-${i + 1}-${generateUUID().slice(0, 8)}`,
           page_index: i + 1,
           title: chunk.heading,
           panels,
@@ -184,7 +224,7 @@ const AppContent: React.FC = () => {
     const parsed = parseMarkdownChunks(sample.markdown);
 
     setProject({
-      id: `proj-demo-${Date.now()}`,
+      id: `proj-demo-${generateUUID().slice(0, 8)}`,
       title: sample.title,
       created_at: Date.now(),
       updated_at: Date.now(),
@@ -205,7 +245,7 @@ const AppContent: React.FC = () => {
         saveProjectToGallery(project);
       }
       setProject({
-        id: `proj-${Date.now()}`,
+        id: `proj-${generateUUID()}`,
         title: 'New Comic Story',
         created_at: Date.now(),
         updated_at: Date.now(),
@@ -221,11 +261,12 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleLoadProject = (id: string) => {
-    const loaded = loadProjectFromGallery(id);
+  const handleLoadProject = async (id: string) => {
+    const loaded = await loadProjectFromGallery(id);
     if (loaded) {
       setProject(loaded);
       setMaxReachedStep(loaded.current_step);
+      toast.success(`Loaded project: "${loaded.title || 'Comic'}"`);
     }
   };
 
@@ -264,6 +305,12 @@ const AppContent: React.FC = () => {
         onQuickDemo={handleQuickDemo}
         onOpenExport={() => setIsExportOpen(true)}
         onOpenGallery={() => setIsGalleryOpen(true)}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        selectedStyleId={project.selected_style_id}
+        onStyleSelect={handleStyleSelect}
         hasPanels={hasPanels}
         projectTitle={project.title}
       />
@@ -280,7 +327,7 @@ const AppContent: React.FC = () => {
             markdown={project.raw_markdown}
             onMarkdownChange={handleMarkdownChange}
             selectedStyleId={project.selected_style_id}
-            onStyleSelect={(id) => setProject(p => ({ ...p, selected_style_id: id }))}
+            onStyleSelect={handleStyleSelect}
             onProceed={() => setProject(p => ({ ...p, current_step: 1 }))}
           />
         )}
@@ -308,6 +355,7 @@ const AppContent: React.FC = () => {
             onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
             characters={project.characters}
             selectedStyleId={project.selected_style_id}
+            onStyleSelect={handleStyleSelect}
             onBack={() => setProject(p => ({ ...p, current_step: 1 }))}
             onProceed={() => setProject(p => ({ ...p, current_step: 3 }))}
           />
@@ -319,6 +367,7 @@ const AppContent: React.FC = () => {
             onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
             characters={project.characters}
             selectedStyleId={project.selected_style_id}
+            onStyleSelect={handleStyleSelect}
             settings={settings}
             onSettingsChange={setSettings}
             onBack={() => setProject(p => ({ ...p, current_step: 2 }))}
@@ -332,6 +381,9 @@ const AppContent: React.FC = () => {
             <ComicStudioView
               pages={project.pages}
               onPagesChange={(pages) => setProject(p => ({ ...p, pages }))}
+              characters={project.characters}
+              selectedStyleId={project.selected_style_id}
+              settings={settings}
               onBack={() => setProject(p => ({ ...p, current_step: 3 }))}
               onProceed={() => setIsExportOpen(true)}
               onOpenExport={() => setIsExportOpen(true)}

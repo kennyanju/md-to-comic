@@ -6,10 +6,11 @@ import {
   Image as ImageIcon, 
   X,
   FileCode,
-  Printer
+  Printer,
+  BookOpen
 } from 'lucide-react';
 import { ComicProject } from '../types/comic';
-import { downloadComicPdf, downloadPagePng, downloadProjectZip } from '../lib/pdfExporter';
+import { downloadComicPdf, downloadPagePng, downloadProjectZip, downloadComicCbz } from '../lib/pdfExporter';
 import { useToast } from './ToastContext';
 
 interface ExportViewProps {
@@ -24,8 +25,10 @@ export const ExportView: React.FC<ExportViewProps> = ({
   onClose
 }) => {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingCbz, setIsExportingCbz] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<string>('');
+  const [cbzProgress, setCbzProgress] = useState<string>('');
   const toast = useToast();
 
   useEffect(() => {
@@ -55,6 +58,22 @@ export const ExportView: React.FC<ExportViewProps> = ({
     } finally {
       setIsExportingPdf(false);
       setPdfProgress('');
+    }
+  };
+
+  const handleExportCbz = async () => {
+    setIsExportingCbz(true);
+    try {
+      await downloadComicCbz(project, (cur, tot, msg) => {
+        setCbzProgress(`${msg} (${Math.round((cur / tot) * 100)}%)`);
+      });
+      toast.success('Standard CBZ Comic Book Archive downloaded!');
+    } catch (err) {
+      console.error('CBZ export failed:', err);
+      toast.error('Failed to compile CBZ comic book.');
+    } finally {
+      setIsExportingCbz(false);
+      setCbzProgress('');
     }
   };
 
@@ -92,7 +111,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       <div 
         className="modal-content" 
         onClick={e => e.stopPropagation()} 
-        style={{ maxWidth: '720px' }}
+        style={{ maxWidth: '780px' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
@@ -120,12 +139,12 @@ export const ExportView: React.FC<ExportViewProps> = ({
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Art Style</div>
-              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-amber)' }}>{project.metadata.art_style || 'Comic'}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-amber)' }}>{project.selected_style_id || 'Comic'}</div>
             </div>
           </div>
 
           {/* Export Options Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
             {/* Multi-Page PDF */}
             <div
               className="glass-card"
@@ -133,34 +152,74 @@ export const ExportView: React.FC<ExportViewProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                gap: '1rem',
-                border: '1px solid var(--border-medium)'
+                gap: '0.75rem',
+                border: '1px solid var(--border-medium)',
+                padding: '1rem'
               }}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '1.05rem' }}>
-                  <FileText color="#ec4899" size={20} aria-hidden="true" />
-                  Complete Comic PDF
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.98rem' }}>
+                  <FileText color="#ec4899" size={18} aria-hidden="true" />
+                  PDF Graphic Novel
                 </div>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  High-DPI multi-page printable PDF book with embedded metadata, speech balloons, and page numbers.
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', lineHeight: '1.35' }}>
+                  High-DPI multi-page printable PDF book with embedded metadata and balloon layers.
                 </p>
               </div>
 
               {pdfProgress && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
                   {pdfProgress}
                 </div>
               )}
 
               <button
-                className="btn btn-primary"
+                className="btn btn-primary btn-sm"
                 onClick={handleExportPdf}
                 disabled={isExportingPdf}
                 type="button"
               >
-                <Download size={16} aria-hidden="true" />
-                <span>{isExportingPdf ? 'Compiling PDF...' : 'Download PDF Book'}</span>
+                <Download size={14} aria-hidden="true" />
+                <span>{isExportingPdf ? 'Compiling PDF...' : 'Download PDF'}</span>
+              </button>
+            </div>
+
+            {/* CBZ Comic Archive */}
+            <div
+              className="glass-card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '0.75rem',
+                border: '1px solid var(--border-medium)',
+                padding: '1rem'
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.98rem' }}>
+                  <BookOpen color="#06b6d4" size={18} aria-hidden="true" />
+                  CBZ Comic Archive
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', lineHeight: '1.35' }}>
+                  Standard Comic Book ZIP for Kindle, Apple Books, and Kavita with ComicInfo.xml metadata.
+                </p>
+              </div>
+
+              {cbzProgress && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                  {cbzProgress}
+                </div>
+              )}
+
+              <button
+                className="btn btn-accent btn-sm"
+                onClick={handleExportCbz}
+                disabled={isExportingCbz}
+                type="button"
+              >
+                <Download size={14} aria-hidden="true" />
+                <span>{isExportingCbz ? 'Packaging CBZ...' : 'Download CBZ'}</span>
               </button>
             </div>
 
@@ -171,28 +230,29 @@ export const ExportView: React.FC<ExportViewProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                gap: '1rem',
-                border: '1px solid var(--border-medium)'
+                gap: '0.75rem',
+                border: '1px solid var(--border-medium)',
+                padding: '1rem'
               }}
             >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '1.05rem' }}>
-                  <Archive color="#f59e0b" size={20} aria-hidden="true" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.98rem' }}>
+                  <Archive color="#f59e0b" size={18} aria-hidden="true" />
                   Raw Assets ZIP
                 </div>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  Download all individual high-resolution PNG panel images, page renders, and JSON metadata.
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.3rem', lineHeight: '1.35' }}>
+                  Download individual raw panel PNGs, page compositions, and story markdown.
                 </p>
               </div>
 
               <button
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 onClick={handleExportZip}
                 disabled={isExportingZip}
                 type="button"
               >
-                <Download size={16} aria-hidden="true" />
-                <span>{isExportingZip ? 'Packaging ZIP...' : 'Download ZIP Bundle'}</span>
+                <Download size={14} aria-hidden="true" />
+                <span>{isExportingZip ? 'Packaging ZIP...' : 'Download ZIP'}</span>
               </button>
             </div>
           </div>

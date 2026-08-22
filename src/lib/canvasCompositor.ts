@@ -13,6 +13,137 @@ export interface CanvasDimensions {
 }
 
 /**
+ * Organic layout partitioner for arbitrary panel counts (1 to 9+ panels)
+ */
+export function calculateDynamicPanelRects(
+  panelCount: number,
+  innerW: number,
+  innerH: number,
+  gutter: number,
+  margin: number
+): PanelRect[] {
+  if (panelCount <= 1) {
+    return [{ x: margin, y: margin, width: innerW, height: innerH }];
+  }
+  if (panelCount === 2) {
+    const h = (innerH - gutter) / 2;
+    return [
+      { x: margin, y: margin, width: innerW, height: h },
+      { x: margin, y: margin + h + gutter, width: innerW, height: h }
+    ];
+  }
+  if (panelCount === 3) {
+    const topH = innerH * 0.48;
+    const botH = innerH - topH - gutter;
+    const botW = (innerW - gutter) / 2;
+    return [
+      { x: margin, y: margin, width: innerW, height: topH },
+      { x: margin, y: margin + topH + gutter, width: botW, height: botH },
+      { x: margin + botW + gutter, y: margin + topH + gutter, width: botW, height: botH }
+    ];
+  }
+  if (panelCount === 4) {
+    const w = (innerW - gutter) / 2;
+    const h = (innerH - gutter) / 2;
+    return [
+      { x: margin, y: margin, width: w, height: h },
+      { x: margin + w + gutter, y: margin, width: w, height: h },
+      { x: margin, y: margin + h + gutter, width: w, height: h },
+      { x: margin + w + gutter, y: margin + h + gutter, width: w, height: h }
+    ];
+  }
+  if (panelCount === 5) {
+    const topH = innerH * 0.32;
+    const midH = innerH * 0.36;
+    const botH = innerH - topH - midH - gutter * 2;
+    const midW = (innerW - gutter * 2) / 3;
+    return [
+      { x: margin, y: margin, width: innerW, height: topH },
+      { x: margin, y: margin + topH + gutter, width: midW, height: midH },
+      { x: margin + midW + gutter, y: margin + topH + gutter, width: midW, height: midH },
+      { x: margin + (midW + gutter) * 2, y: margin + topH + gutter, width: midW, height: midH },
+      { x: margin, y: margin + topH + midH + gutter * 2, width: innerW, height: botH }
+    ];
+  }
+  if (panelCount === 6) {
+    const w = (innerW - gutter) / 2;
+    const h = (innerH - gutter * 2) / 3;
+    return [
+      { x: margin, y: margin, width: w, height: h },
+      { x: margin + w + gutter, y: margin, width: w, height: h },
+      { x: margin, y: margin + h + gutter, width: w, height: h },
+      { x: margin + w + gutter, y: margin + h + gutter, width: w, height: h },
+      { x: margin, y: margin + (h + gutter) * 2, width: w, height: h },
+      { x: margin + w + gutter, y: margin + (h + gutter) * 2, width: w, height: h }
+    ];
+  }
+  if (panelCount === 7) {
+    const row1H = innerH * 0.32;
+    const row2H = innerH * 0.36;
+    const row3H = innerH - row1H - row2H - gutter * 2;
+    const r1w1 = (innerW - gutter) * 0.58;
+    const r1w2 = innerW - gutter - r1w1;
+    const r2w = (innerW - gutter * 2) / 3;
+    const r3w1 = (innerW - gutter) * 0.42;
+    const r3w2 = innerW - gutter - r3w1;
+    return [
+      { x: margin, y: margin, width: r1w1, height: row1H },
+      { x: margin + r1w1 + gutter, y: margin, width: r1w2, height: row1H },
+      { x: margin, y: margin + row1H + gutter, width: r2w, height: row2H },
+      { x: margin + r2w + gutter, y: margin + row1H + gutter, width: r2w, height: row2H },
+      { x: margin + (r2w + gutter) * 2, y: margin + row1H + gutter, width: r2w, height: row2H },
+      { x: margin, y: margin + row1H + row2H + gutter * 2, width: r3w1, height: row3H },
+      { x: margin + r3w1 + gutter, y: margin + row1H + row2H + gutter * 2, width: r3w2, height: row3H }
+    ];
+  }
+  if (panelCount === 8) {
+    const rowH = (innerH - gutter * 2) / 3;
+    const r1w = (innerW - gutter * 2) / 3;
+    const r2w = (innerW - gutter) / 2;
+    const r3w = (innerW - gutter * 2) / 3;
+    return [
+      { x: margin, y: margin, width: r1w, height: rowH },
+      { x: margin + r1w + gutter, y: margin, width: r1w, height: rowH },
+      { x: margin + (r1w + gutter) * 2, y: margin, width: r1w, height: rowH },
+      { x: margin, y: margin + rowH + gutter, width: r2w, height: rowH },
+      { x: margin + r2w + gutter, y: margin + rowH + gutter, width: r2w, height: rowH },
+      { x: margin, y: margin + (rowH + gutter) * 2, width: r3w, height: rowH },
+      { x: margin + r3w + gutter, y: margin + (rowH + gutter) * 2, width: r3w, height: rowH },
+      { x: margin + (r3w + gutter) * 2, y: margin + (rowH + gutter) * 2, width: r3w, height: rowH }
+    ];
+  }
+
+  // Dynamic row partition for arbitrary N
+  const numRows = Math.min(4, Math.ceil(panelCount / 3));
+  const rowHeight = (innerH - gutter * (numRows - 1)) / numRows;
+  const rects: PanelRect[] = [];
+  const baseCols = Math.floor(panelCount / numRows);
+  let remainder = panelCount % numRows;
+
+  let currentY = margin;
+  for (let r = 0; r < numRows; r++) {
+    const colsInThisRow = baseCols + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder--;
+
+    const colWidth = (innerW - gutter * (colsInThisRow - 1)) / colsInThisRow;
+    let currentX = margin;
+
+    for (let c = 0; c < colsInThisRow; c++) {
+      rects.push({
+        x: currentX,
+        y: currentY,
+        width: colWidth,
+        height: rowHeight
+      });
+      currentX += colWidth + gutter;
+    }
+    currentY += rowHeight + gutter;
+  }
+
+  return rects;
+}
+
+/**
  * Calculates panel grid bounding boxes for a page layout
  */
 export function calculatePanelRects(
@@ -20,10 +151,15 @@ export function calculatePanelRects(
   containerWidth: number,
   containerHeight: number,
   gutter: number,
-  margin: number
+  margin: number,
+  panelCount: number = 4
 ): PanelRect[] {
   const innerW = containerWidth - margin * 2;
   const innerH = containerHeight - margin * 2;
+
+  if (layoutType === 'dynamic-auto') {
+    return calculateDynamicPanelRects(panelCount, innerW, innerH, gutter, margin);
+  }
 
   switch (layoutType) {
     case 'grid-4': {
@@ -127,7 +263,7 @@ export async function renderComicPageToCanvas(
   ctx.fillRect(0, 0, width, height);
 
   // 2. Calculate Panel Geometry
-  const rects = calculatePanelRects(layout.layout_type, width, height, gutter, margin);
+  const rects = calculatePanelRects(layout.layout_type, width, height, gutter, margin, page.panels.length);
 
   // 3. Render Each Panel Image & Border
   for (let i = 0; i < rects.length; i++) {

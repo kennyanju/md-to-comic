@@ -1,4 +1,5 @@
 import { FrontmatterMetadata, MarkdownChunk, CharacterRosterItem } from '../types/comic';
+import { generateUUID } from './crypto';
 
 /**
  * Extracts YAML frontmatter and markdown body
@@ -119,8 +120,9 @@ export function parseMarkdownChunks(rawText: string): {
   const chunks: MarkdownChunk[] = sections.map((sec, idx) => {
     const wordCount = sec.content.split(/\s+/).filter(Boolean).length;
     const stableId = generateSlug(sec.heading) || 'scene';
+    const uuidSuffix = generateUUID().slice(0, 8);
     return {
-      id: `chunk-${idx + 1}-${stableId}`,
+      id: `chunk-${idx + 1}-${stableId}-${uuidSuffix}`,
       page_index: idx + 1,
       heading: sec.heading,
       raw_markdown: sec.content,
@@ -129,8 +131,7 @@ export function parseMarkdownChunks(rawText: string): {
     };
   });
 
-  // Extract character candidates from dialogue patterns like:
-  // "Text" Kira said or Kira: "Text" or Jax replied
+  // Extract character candidates from dialogue patterns
   const detectedCharacters = extractCharacters(body);
 
   return {
@@ -140,42 +141,65 @@ export function parseMarkdownChunks(rawText: string): {
   };
 }
 
+const EXCLUDED_WORDS = new Set([
+  'Suddenly', 'Inside', 'After', 'Behind', 'High', 'Beneath', 'The', 'They', 'He', 'She', 'It', 'We', 'You',
+  'Meanwhile', 'Chapter', 'Scene', 'Page', 'Act', 'However', 'Furthermore', 'Afterward', 'Outside',
+  'Around', 'Everywhere', 'Someone', 'Anyone', 'Everyone', 'Nobody', 'Nothing', 'Something', 'Everything',
+  'Then', 'When', 'Where', 'Why', 'How', 'What', 'Who', 'Before', 'Under', 'Above', 'Across', 'Through',
+  'Finally', 'Instantly', 'Quickly', 'Slowly', 'Carefully', 'Silent', 'Silence', 'Darkness', 'Light',
+  'Later', 'Soon', 'Next', 'Yesterday', 'Today', 'Tomorrow', 'Again', 'Together', 'Alone'
+]);
+
 /**
  * Heuristic extraction of character names and potential roles
  */
-function extractCharacters(text: string): CharacterRosterItem[] {
+export function extractCharacters(text: string): CharacterRosterItem[] {
   const charMap = new Map<string, { role: string; count: number }>();
 
   const trackName = (name: string, weight: number = 1) => {
-    const n = name.trim();
-    if (n && n.length > 2 && n.length < 25 && !['Suddenly', 'Inside', 'After', 'Behind', 'High', 'Beneath', 'The', 'They', 'He', 'She', 'It', 'We', 'You'].includes(n)) {
+    let n = name.trim();
+    // Strip trailing punctuation
+    n = n.replace(/[:,"'!?]+$/, '').trim();
+    if (
+      n && 
+      n.length >= 2 && 
+      n.length <= 30 && 
+      !EXCLUDED_WORDS.has(n) &&
+      !/^\d+$/.test(n)
+    ) {
       const cur = charMap.get(n) || { role: 'Character', count: 0 };
       cur.count += weight;
       charMap.set(n, cur);
     }
   };
 
-  // Patterns: Kira whispered / Jax roared / Dr. Ada said / Professor Ada
-  const dialogueAfterPattern = /"([^"]+)"\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:said|whispered|roared|replied|shouted|murmured|asked|exclaimed|gasped|warned)/g;
+  // Pattern 1: Title + Name (e.g. Dr. Voss, Professor Ada, Captain Rynn, Sir Gareth, Lady Vane)
+  const titlePattern = /\b(?:Dr\.?|Doctor|Prof\.?|Professor|Captain|Capt\.?|Sir|Lord|Lady|Agent|Commander|Master|King|Queen|Princess|Prince)\s+([A-Z][a-zA-Z-]+(?:\s+[A-Z][a-zA-Z-]+)?)\b/g;
   let match: RegExpExecArray | null;
-  while ((match = dialogueAfterPattern.exec(text)) !== null) {
-    trackName(match[2], 2);
+  while ((match = titlePattern.exec(text)) !== null) {
+    trackName(match[0], 2.5);
   }
 
-  // Pattern: Kira: "Dialogue" or Sir Gareth: "..."
-  const dialogueBeforePattern = /^([A-Z][a-zA-Z\s.-]+):\s*"/gm;
+  // Pattern 2: Dialogue follow-up (e.g. "..." Kira said / "..." Jean-Luc whispered / "..." ZARA shouted)
+  const dialogueAfterPattern = /["'”]\s+([A-Z][a-zA-Z-]+(?:\s+[A-Z][a-zA-Z-]+)?)\s+(?:said|whispered|roared|replied|shouted|murmured|asked|exclaimed|gasped|warned|yelled|muttered|called|snarled)/g;
+  while ((match = dialogueAfterPattern.exec(text)) !== null) {
+    trackName(match[1], 2);
+  }
+
+  // Pattern 3: Script dialogue format (e.g. KIRA: "..." or Jean-Luc: "..." or ZARA: ...)
+  const dialogueBeforePattern = /^([A-Z][a-zA-Z0-9\s.-]+):\s*["'“]/gm;
   while ((match = dialogueBeforePattern.exec(text)) !== null) {
     trackName(match[1], 2);
   }
 
-  // Pattern: Bold names e.g. **Kira**
-  const boldNamePattern = /\*\*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\*\*/g;
+  // Pattern 4: Bold names in markdown e.g. **Kira** or **Jean-Luc**
+  const boldNamePattern = /\*\*([A-Z][a-zA-Z-]+(?:\s+[A-Z][a-zA-Z-]+)?)\*\*/g;
   while ((match = boldNamePattern.exec(text)) !== null) {
     trackName(match[1], 1.5);
   }
 
-  // Pattern: Name + action verb (e.g. Kira charged, Jax leaped)
-  const actionPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+(?:charged|leaped|jumped|ran|turned|smiled|frowned|nodded|stood)/g;
+  // Pattern 5: Name + action verb (e.g. Kira charged, Jax leaped, Jean-Luc drew)
+  const actionPattern = /\b([A-Z][a-zA-Z-]+(?:\s+[A-Z][a-zA-Z-]+)?)\s+(?:charged|leaped|jumped|ran|turned|smiled|frowned|nodded|stood|walked|dashed|stepped|glanced|looked|sighed|lunged)\b/g;
   while ((match = actionPattern.exec(text)) !== null) {
     trackName(match[1], 1);
   }

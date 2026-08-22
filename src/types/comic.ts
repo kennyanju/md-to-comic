@@ -64,6 +64,7 @@ export interface MarkdownChunk {
 }
 
 export type PageLayoutType = 
+  | 'dynamic-auto'   // Dynamic organic grid auto-calculated for any panel count
   | 'grid-4'         // 2x2 classic grid
   | 'cinematic-3'    // 3 widescreen horizontal banners
   | 'action-5'       // 1 top banner + 3 middle split + 1 bottom banner

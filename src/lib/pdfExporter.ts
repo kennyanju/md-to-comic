@@ -141,3 +141,52 @@ export async function downloadProjectZip(project: ComicProject) {
   const safeTitle = (project.title || 'comic-assets').toLowerCase().replace(/[^a-z0-9]/g, '-');
   saveAs(zipContent, `${safeTitle}-assets.zip`);
 }
+
+/**
+ * Exports full comic as a standardized CBZ (Comic Book ZIP) archive for e-readers
+ * with ComicInfo.xml metadata
+ */
+export async function downloadComicCbz(
+  project: ComicProject,
+  onProgress?: ExportProgressCallback
+) {
+  const zip = new JSZip();
+  const totalPages = project.pages.length;
+  const canvas = document.createElement('canvas');
+
+  // Add standard ComicInfo.xml metadata
+  const xmlMetadata = `<?xml version="1.0" encoding="utf-8"?>
+<ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Title>${(project.title || 'Untitled Comic').replace(/[<>&'"]/g, '')}</Title>
+  <Series>${(project.title || 'Comic Series').replace(/[<>&'"]/g, '')}</Series>
+  <Summary>${(project.metadata.genre || 'Created with MD to Comic AI Studio').toString().replace(/[<>&'"]/g, '')}</Summary>
+  <Writer>${(project.metadata.author || 'AI Comic Creator').toString().replace(/[<>&'"]/g, '')}</Writer>
+  <PageCount>${totalPages}</PageCount>
+  <Genre>${(project.metadata.genre || 'Graphic Novel').toString().replace(/[<>&'"]/g, '')}</Genre>
+  <Format>Digital Comic</Format>
+  <Manga>No</Manga>
+</ComicInfo>`;
+
+  zip.file('ComicInfo.xml', xmlMetadata);
+
+  for (let i = 0; i < totalPages; i++) {
+    const page = project.pages[i];
+    if (onProgress) {
+      onProgress(i + 1, totalPages, `Packaging CBZ page ${i + 1} of ${totalPages}...`);
+    }
+
+    let pageDataUrl = page.assembled_image_url;
+    if (!pageDataUrl) {
+      await renderComicPageToCanvas(canvas, page, 1.5);
+      pageDataUrl = canvas.toDataURL('image/png');
+    }
+
+    const pageNum = String(page.page_index || i + 1).padStart(3, '0');
+    const pageBase64 = pageDataUrl.split(',')[1];
+    zip.file(`${pageNum}.png`, pageBase64, { base64: true });
+  }
+
+  const cbzBlob = await zip.generateAsync({ type: 'blob' });
+  const safeTitle = (project.title || 'comic-book').toLowerCase().replace(/[^a-z0-9]/g, '-');
+  saveAs(cbzBlob, `${safeTitle}.cbz`);
+}
