@@ -15,7 +15,7 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
 
     const { prompt: builtPrompt, negative_prompt } = buildImageGenerationPrompt(panel, characters, artStyle);
     const finalPrompt = panel.generated_prompt || builtPrompt;
-    const model = settings.hf_model || 'black-forest-labs/FLUX.1-schnell';
+    const model = settings.hf_model || 'stabilityai/stable-diffusion-2-1';
 
     const response = await fetch('/api/generate-image', {
       method: 'POST',
@@ -34,13 +34,23 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
       try {
         const json = await response.json();
         if (json.error) {
-          errorMsg = json.error;
+          errorMsg = typeof json.error === 'string' ? json.error : JSON.stringify(json.error);
         }
       } catch {
-        const text = await response.text();
-        if (text) errorMsg = text;
+        try {
+          const text = await response.text();
+          if (text) errorMsg = text;
+        } catch {}
       }
       throw new Error(errorMsg);
+    }
+
+    // Notify the UI if Cloudflare AI was used as a fallback
+    const backendUsed = response.headers.get('X-Image-Backend');
+    if (backendUsed === 'cloudflare-ai') {
+      window.dispatchEvent(new CustomEvent('comic:cf-ai-fallback', {
+        detail: { message: 'HF model unavailable — generated with Cloudflare AI instead.' }
+      }));
     }
 
     const blob = await response.blob();

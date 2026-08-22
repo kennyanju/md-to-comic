@@ -112,28 +112,22 @@ app.post('/api/generate-image', async (c) => {
     if (backend === 'huggingface') {
       const token = api_key || c.env.HF_ACCESS_TOKEN;
       if (!token) return c.json({ error: 'Hugging Face API token is required' }, 401);
-      const requestedModel = body.model || 'black-forest-labs/FLUX.1-dev';
-      
-      // Build candidate endpoints across router providers and verified models
+      const requestedModel = body.model || 'stabilityai/stable-diffusion-2-1';
+
+      // Only attempt endpoints that work with a standard HF token.
+      // Third-party providers (together, replicate, fal-ai) require their own
+      // billing accounts — they will always return 401 with a plain HF token.
       const candidateUrls: string[] = [
-        // 1. Try requested model on third-party inference providers
-        `https://router.huggingface.co/together/models/${requestedModel}`,
-        `https://router.huggingface.co/replicate/models/${requestedModel}`,
-        `https://router.huggingface.co/fal-ai/models/${requestedModel}`,
+        // 1. User's chosen model on hf-inference (works if it's in the serverless catalog)
         `https://router.huggingface.co/hf-inference/models/${requestedModel}`,
-        `https://router.huggingface.co/models/${requestedModel}`,
-        // 2. Verified active Hugging Face Serverless models
-        'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-dev',
-        'https://router.huggingface.co/together/models/black-forest-labs/FLUX.1-schnell',
+        // 2. Verified serverless model that reliably works with a free HF token
         'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-2-1',
-        'https://router.huggingface.co/hf-inference/models/runwayml/stable-diffusion-v1-5'
       ];
 
-      // Deduplicate URLs while preserving order
+      // Deduplicate in case the user already chose sd-2-1
       const uniqueUrls = Array.from(new Set(candidateUrls));
 
-      let lastError = 'Image generation failed';
-      let lastStatus = 500;
+      let lastError = 'All Hugging Face endpoints failed';
 
       for (const url of uniqueUrls) {
         try {
@@ -150,7 +144,7 @@ app.post('/api/generate-image', async (c) => {
                 negative_prompt: negative_prompt || undefined,
                 width: 768,
                 height: 512,
-                num_inference_steps: 4
+                num_inference_steps: 20
               }
             })
           });
@@ -161,7 +155,12 @@ app.post('/api/generate-image', async (c) => {
             });
           }
 
-          lastStatus = hfRes.status;
+          // 401 means bad token — no point trying other endpoints
+          if (hfRes.status === 401) {
+            const errText = await hfRes.text();
+            return c.json({ error: 'Hugging Face token is invalid or expired (401). Please update it in Settings.' }, 401);
+          }
+
           const errText = await hfRes.text();
           try {
             const parsed = JSON.parse(errText);
@@ -169,19 +168,34 @@ app.post('/api/generate-image', async (c) => {
           } catch {
             lastError = errText;
           }
-
-          // If status is 401 (bad token), no need to retry other endpoints
-          if (hfRes.status === 401) {
-            break;
-          }
-
-          // For 410 (deprecated model on current provider), 404 (not on provider), 530 (DNS), or 503 (loading), continue to next candidate
         } catch (fetchErr: any) {
           lastError = fetchErr.message;
         }
       }
 
-      return c.json({ error: `Hugging Face Error: ${lastError}` }, lastStatus as any);
+      // ── Automatic Cloudflare AI fallback ──────────────────────────────────
+      // All HF endpoints failed. Use the always-available Cloudflare Workers AI
+      // binding so the user still gets an image.
+      if (c.env.AI) {
+        try {
+          const cfResponse = await c.env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+            prompt,
+            negative_prompt: negative_prompt || undefined,
+            num_steps: 20
+          });
+          return new Response(cfResponse, {
+            headers: {
+              'Content-Type': 'image/png',
+              'X-Image-Backend': 'cloudflare-ai',
+              'X-HF-Error': lastError.substring(0, 200)
+            }
+          });
+        } catch (cfErr: any) {
+          return c.json({ error: `Hugging Face failed (${lastError}) and Cloudflare AI fallback also failed: ${cfErr.message}` }, 500);
+        }
+      }
+
+      return c.json({ error: `Hugging Face Error: ${lastError}` }, 500);
     }
 
     if (backend === 'replicate') {

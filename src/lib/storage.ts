@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   preferred_llm_model: 'google/gemini-2.5-pro',
   preferred_image_backend: 'mock_demo',
   replicate_model: 'black-forest-labs/flux-schnell',
-  hf_model: 'black-forest-labs/FLUX.1-dev',
+  hf_model: 'stabilityai/stable-diffusion-2-1',
   panelsPerPage: 4
 };
 

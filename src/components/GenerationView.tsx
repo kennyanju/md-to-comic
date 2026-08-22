@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Image as ImageIcon, 
   ArrowRight, 
@@ -50,6 +50,17 @@ export const GenerationView: React.FC<GenerationViewProps> = ({
 
   const { updatePanel } = usePanelUpdater(pages, onPagesChange);
   const artStyle = getArtStyleById(selectedStyleId);
+
+  // Listen for automatic Cloudflare AI fallback notifications from the HF adapter
+  useEffect(() => {
+    const handleCfFallback = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      toast.info(`☁️ ${detail?.message || 'Generated with Cloudflare AI (HF model unavailable).'}`);
+    };
+    window.addEventListener('comic:cf-ai-fallback', handleCfFallback);
+    return () => window.removeEventListener('comic:cf-ai-fallback', handleCfFallback);
+  }, [toast]);
+
 
   // Flatten all panels
   const allPanels: { panel: PanelScript; pageIdx: number }[] = [];
