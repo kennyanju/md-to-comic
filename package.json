@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev:ui": "vite",
+    "dev:worker": "wrangler dev workers/api/index.ts --port 8787",
+    "dev": "concurrently \"npm run dev:ui\" \"npm run dev:worker\"",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -21,6 +23,7 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^10.0.5",
     "typescript": "^5.7.3",
     "vite": "^6.2.0",
     "wrangler": "^4.123.0"
