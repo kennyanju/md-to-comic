@@ -66,6 +66,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const testHuggingFace = async () => {
+    if (!formData.hf_token) return;
+    setTestingKey('huggingface');
+    try {
+      const res = await fetch('https://huggingface.co/api/whoami-v2', {
+        headers: { 'Authorization': `Bearer ${formData.hf_token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestResult(prev => ({ ...prev, huggingface: { ok: true, message: `Connected (${data.name || 'Active'})` } }));
+      } else {
+        setTestResult(prev => ({ ...prev, huggingface: { ok: false, message: 'Invalid HF Token' } }));
+      }
+    } catch {
+      setTestResult(prev => ({ ...prev, huggingface: { ok: false, message: 'Network / Connection error' } }));
+    } finally {
+      setTestingKey(null);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div 
@@ -141,14 +161,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Hugging Face Token */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            <label htmlFor="hf_token" style={{ fontWeight: 700, fontSize: '0.88rem' }}>Hugging Face User Access Token</label>
-            <input
-              id="hf_token"
-              type="password"
-              placeholder="hf_..."
-              value={formData.hf_token}
-              onChange={(e) => handleChange('hf_token', e.target.value)}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label htmlFor="hf_token" style={{ fontWeight: 700, fontSize: '0.88rem' }}>Hugging Face User Access Token</label>
+              {testResult.huggingface && (
+                <span style={{ fontSize: '0.78rem', color: testResult.huggingface.ok ? '#10b981' : '#f43f5e', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  {testResult.huggingface.ok ? <CheckCircle2 size={12} aria-hidden="true" /> : <AlertCircle size={12} aria-hidden="true" />}
+                  {testResult.huggingface.message}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                id="hf_token"
+                type="password"
+                placeholder="hf_..."
+                value={formData.hf_token}
+                onChange={(e) => handleChange('hf_token', e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={testHuggingFace}
+                disabled={!formData.hf_token || testingKey === 'huggingface'}
+                type="button"
+                aria-label="Test Hugging Face Token"
+              >
+                <RefreshCw size={13} className={testingKey === 'huggingface' ? 'spinning' : ''} aria-hidden="true" />
+                <span>Test</span>
+              </button>
+            </div>
           </div>
 
           {/* Cloudflare Workers AI */}

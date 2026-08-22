@@ -30,8 +30,17 @@ export class HuggingFaceAdapter implements ImageGeneratorAdapter {
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Hugging Face error (${response.status}): ${err}`);
+      let errorMsg = `Hugging Face error (${response.status})`;
+      try {
+        const json = await response.json();
+        if (json.error) {
+          errorMsg = json.error;
+        }
+      } catch {
+        const text = await response.text();
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
     }
 
     const blob = await response.blob();

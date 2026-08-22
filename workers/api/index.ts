@@ -111,25 +111,64 @@ app.post('/api/generate-image', async (c) => {
 
     if (backend === 'huggingface') {
       const token = api_key || c.env.HF_ACCESS_TOKEN;
-      if (!token) return c.json({ error: 'HF token required' }, 401);
+      if (!token) return c.json({ error: 'Hugging Face API token is required' }, 401);
       const hfModel = body.model || 'black-forest-labs/FLUX.1-schnell';
-      const hfRes = await fetch(`https://api-inference.huggingface.co/models/${hfModel}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          inputs: prompt,
-          parameters: { negative_prompt, width: 768, height: 512, num_inference_steps: 4 }
-        })
-      });
-      if (!hfRes.ok) {
-        return c.json({ error: await hfRes.text() }, hfRes.status as any);
+      
+      // Hugging Face migrated from api-inference.huggingface.co to router.huggingface.co/hf-inference/models/
+      const endpoints = [
+        `https://router.huggingface.co/hf-inference/models/${hfModel}`,
+        `https://router.huggingface.co/models/${hfModel}`,
+        `https://api-inference.huggingface.co/models/${hfModel}`
+      ];
+
+      let lastError = 'Image generation failed';
+      let lastStatus = 500;
+
+      for (const endpoint of endpoints) {
+        try {
+          const hfRes = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'image/png'
+            },
+            body: JSON.stringify({
+              inputs: prompt,
+              parameters: {
+                negative_prompt: negative_prompt || undefined,
+                width: 768,
+                height: 512,
+                num_inference_steps: 4
+              }
+            })
+          });
+
+          if (hfRes.ok) {
+            return new Response(await hfRes.arrayBuffer(), {
+              headers: { 'Content-Type': hfRes.headers.get('Content-Type') || 'image/png' }
+            });
+          }
+
+          lastStatus = hfRes.status;
+          const errText = await hfRes.text();
+          try {
+            const parsed = JSON.parse(errText);
+            lastError = parsed.error || parsed.message || errText;
+          } catch {
+            lastError = errText;
+          }
+
+          // If error is 530 (Cloudflare DNS error on old domain) or 404, try next endpoint
+          if (hfRes.status !== 530 && hfRes.status !== 404) {
+            break;
+          }
+        } catch (fetchErr: any) {
+          lastError = fetchErr.message;
+        }
       }
-      return new Response(await hfRes.arrayBuffer(), {
-        headers: { 'Content-Type': hfRes.headers.get('Content-Type') || 'image/png' }
-      });
+
+      return c.json({ error: `Hugging Face Error: ${lastError}` }, lastStatus as any);
     }
 
     if (backend === 'replicate') {
